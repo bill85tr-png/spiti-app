@@ -2469,13 +2469,20 @@ async function syncToDrive() {
     showSyncToast('☁️ Αποθήκευση στο Drive...', 'info');
     const data = JSON.stringify({ DB, capitalBase, exportDate: new Date().toISOString(), version: '3.4' });
     try {
-        if (!driveFileId) driveFileId = await findFile();
-        if (driveFileId) { await updateFile(driveFileId, data); }
-        else { driveFileId = await createFile(data); localStorage.setItem('spitiDriveFileId', driveFileId); }
+        // Πάντα ψάχνουμε πρώτα αν υπάρχει αρχείο
+        const foundId = await findFile();
+        if (foundId) {
+            driveFileId = foundId;
+            localStorage.setItem('spitiDriveFileId', driveFileId);
+            await updateFile(driveFileId, data);
+        } else {
+            driveFileId = await createFile(data);
+            localStorage.setItem('spitiDriveFileId', driveFileId);
+        }
         showSyncToast('✅ Αποθηκεύτηκε στο Drive!', 'success');
     } catch(e) {
         if (e.message === 'TOKEN_EXPIRED') { googleSignOut(); showSyncToast('⚠️ Η σύνδεση έληξε. Συνδέσου ξανά.', 'error'); }
-        else showSyncToast('❌ Σφάλμα αποθήκευσης', 'error');
+        else showSyncToast('❌ Σφάλμα αποθήκευσης: ' + e.message, 'error');
     }
     isSyncing = false;
 }
