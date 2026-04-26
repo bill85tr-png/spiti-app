@@ -2382,7 +2382,7 @@ function initGoogleAuth() {
             hideReconnectBanner();
             updateGoogleUI(true);
             scheduleRefresh(response.expires_in);
-            if (isFirst) setTimeout(() => syncFromDrive(), 1000);
+            if (isFirst) setTimeout(() => showSyncChoiceDialog(), 1000);
         }
     });
 
@@ -2443,6 +2443,30 @@ function showGoogleMenu() {
         });
     }, 100);
     document.body.appendChild(menu);
+}
+
+function showSyncChoiceDialog() {
+    const old = document.getElementById('syncChoiceDialog');
+    if (old) old.remove();
+    const d = document.createElement('div');
+    d.id = 'syncChoiceDialog';
+    d.style.cssText = `position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;padding:20px;`;
+    d.innerHTML = `
+        <div style="background:var(--sur,#1e1e1e);border-radius:16px;padding:24px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+            <div style="font-size:24px;text-align:center;margin-bottom:8px;">☁️</div>
+            <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:8px;">Συγχρονισμός Drive</div>
+            <div style="font-size:13px;opacity:0.7;text-align:center;margin-bottom:20px;">Τι θέλεις να κάνεις;</div>
+            <button onclick="syncToDrive();document.getElementById('syncChoiceDialog').remove();" style="width:100%;background:#4a8f3f;color:white;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:10px;">
+                ⬆️ Ανέβασε τα τοπικά στο Drive
+            </button>
+            <button onclick="syncFromDrive();document.getElementById('syncChoiceDialog').remove();" style="width:100%;background:#2196F3;color:white;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:10px;">
+                ⬇️ Κατέβασε από Drive
+            </button>
+            <button onclick="document.getElementById('syncChoiceDialog').remove();" style="width:100%;background:transparent;color:inherit;border:1px solid rgba(255,255,255,0.2);border-radius:10px;padding:12px;font-size:14px;cursor:pointer;">
+                Παράλειψη
+            </button>
+        </div>`;
+    document.body.appendChild(d);
 }
 
 function showReconnectBanner() {
