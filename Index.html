@@ -88,6 +88,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
 .row-sub{display:flex;gap:6px;margin-top:2px;flex-wrap:wrap}
 .row-sub span{font-size:11px;color:var(--muted)}
 .row-note{font-size:11px;color:var(--orange);margin-top:2px}
+.row-cum{font-size:11px;color:var(--muted);margin-top:2px}
+.row-cum b{color:var(--txt);font-weight:600}
 .row-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
 .row-amt{font-family:'Syne',sans-serif;font-size:13px;font-weight:700}
 .row-actions{display:flex;gap:4px}
@@ -1071,6 +1073,18 @@ function renderTimeline() {
     document.getElementById('tl-list').innerHTML = '<div class="empty">Δεν βρέθηκαν εγγραφές</div>';
     return;
   }
+  // Συνολικό κόστος (εκτός εξόδων δανείων) μέχρι κάθε χρονική περίοδο,
+  // υπολογισμένο χρονολογικά πάνω σε ΟΛΕΣ τις εγγραφές (ανεξαρτήτως φίλτρου/ταξινόμησης)
+  const chronological = [...DB.tl].sort((a,b)=>{
+    const d = (a.date||'').localeCompare(b.date||'');
+    return d!==0 ? d : (a.id-b.id);
+  });
+  const cumMap = new Map();
+  let running = 0;
+  chronological.forEach(e=>{
+    if (e.fromLoan!==true) running += (+e.cost||0);
+    cumMap.set(e.id, running);
+  });
   document.getElementById('tl-list').innerHTML = `<div class="card" style="padding:0 14px">`+list.map((e,i)=>`
     <div class="row">
       <div class="tl-dot-col">
@@ -1084,6 +1098,7 @@ function renderTimeline() {
           <span style="color:${catColor(e.cat)}">${e.cat||'—'}</span>
         </div>
         ${e.note?`<div class="row-note">📌 ${e.note}</div>`:''}
+        <div class="row-cum">Σύνολο (χωρίς δάνεια) έως τότε: <b>${fmt(cumMap.get(e.id)||0)}</b></div>
       </div>
       <div class="row-right">
         <div class="row-amt" style="color:${catColor(e.cat)}">${fmt(+e.cost)}</div>
