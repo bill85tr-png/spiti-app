@@ -1058,8 +1058,8 @@ function renderTimeline() {
     (e.cat||'').toLowerCase().includes(q)||
     (e.note||'').toLowerCase().includes(q)
   );
-  if(tlSort==='date-desc') list.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  else if(tlSort==='date-asc')  list.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  if(tlSort==='date-desc') list.sort((a,b)=>{ const d=(b.date||'').localeCompare(a.date||''); return d!==0?d:(b.id-a.id); });
+  else if(tlSort==='date-asc')  list.sort((a,b)=>{ const d=(a.date||'').localeCompare(b.date||''); return d!==0?d:(b.id-a.id); });
   else if(tlSort==='cost-desc') list.sort((a,b)=>(+b.cost||0)-(+a.cost||0));
   else if(tlSort==='cost-asc')  list.sort((a,b)=>(+a.cost||0)-(+b.cost||0));
   const summaryTotal = list.reduce((s,e)=>s+(+e.cost||0),0);
