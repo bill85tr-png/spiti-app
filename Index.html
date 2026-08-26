@@ -1073,8 +1073,11 @@ function renderTimeline() {
     document.getElementById('tl-list').innerHTML = '<div class="empty">Δεν βρέθηκαν εγγραφές</div>';
     return;
   }
-  // Συνολικό κόστος (εκτός εξόδων δανείων) μέχρι κάθε χρονική περίοδο,
-  // υπολογισμένο χρονολογικά πάνω σε ΟΛΕΣ τις εγγραφές (ανεξαρτήτως φίλτρου/ταξινόμησης)
+  // Συνολικό κόστος μέχρι κάθε χρονική περίοδο, υπολογισμένο χρονολογικά
+  // πάνω σε ΟΛΕΣ τις εγγραφές (ανεξαρτήτως φίλτρου/ταξινόμησης).
+  // Σημ.: τα έξοδα δανείου (νομικά/τεχνικά/τραπεζικά έξοδα έκδοσης δανείου)
+  // καταγράφονται ξεχωριστά στην καρτέλα Δάνεια και δεν υπάρχουν στο Timeline,
+  // άρα δεν χρειάζεται καμία εξαίρεση εδώ.
   const chronological = [...DB.tl].sort((a,b)=>{
     const d = (a.date||'').localeCompare(b.date||'');
     return d!==0 ? d : (a.id-b.id);
@@ -1082,7 +1085,7 @@ function renderTimeline() {
   const cumMap = new Map();
   let running = 0;
   chronological.forEach(e=>{
-    if (e.fromLoan!==true) running += (+e.cost||0);
+    running += (+e.cost||0);
     cumMap.set(e.id, running);
   });
   document.getElementById('tl-list').innerHTML = `<div class="card" style="padding:0 14px">`+list.map((e,i)=>`
@@ -1098,7 +1101,7 @@ function renderTimeline() {
           <span style="color:${catColor(e.cat)}">${e.cat||'—'}</span>
         </div>
         ${e.note?`<div class="row-note">📌 ${e.note}</div>`:''}
-        <div class="row-cum">Σύνολο (χωρίς δάνεια) έως τότε: <b>${fmt(cumMap.get(e.id)||0)}</b></div>
+        <div class="row-cum">Συνολικό κόστος έως τότε: <b>${fmt(cumMap.get(e.id)||0)}</b></div>
       </div>
       <div class="row-right">
         <div class="row-amt" style="color:${catColor(e.cat)}">${fmt(+e.cost)}</div>
