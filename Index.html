@@ -236,6 +236,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
     <div class="kpi"><div class="kpi-lbl">Καθαρά Κεφάλαια</div><div class="kpi-val c-green" id="d-own">—</div></div>
     <div class="kpi"><div class="kpi-lbl">Έξοδα Δανείων</div><div class="kpi-val c-red" id="d-loan-exp">—</div></div>
   </div>
+  <div id="d-loan-held" style="display:none;font-size:12px;color:var(--muted);margin:-4px 4px 10px"></div>
   <div class="card" id="d-nbg-card">
     <div class="card-hdr">NBG 1ο Δάνειο</div>
     <div class="prog-wrap">
@@ -295,6 +296,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
         <div style="text-align:right"><div style="font-size:10px;color:var(--muted)">Εκταμιευθέντα</div><div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--green)" id="loan-total-out">—</div></div>
       </div>
       <div style="font-size:12px;color:var(--muted);margin-top:6px">Έξοδα Δανείων: <span style="color:var(--red-l);font-weight:600" id="loan-total-exp">—</span></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">🔁 Εγγυήσεις προς επιστροφή: <span style="color:var(--orange-l);font-weight:600" id="loan-total-held">—</span></div>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bdr);display:flex;align-items:center;gap:8px">
         <span style="font-size:11px;color:var(--muted);flex:1">Αχρησιμοποίητο Υπόλοιπο Δανείου</span>
         <input type="number" id="unused-loan-input" min="0" step="0.01" placeholder="0.00"
@@ -510,6 +512,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
         <div id="dan-unused-track" style="position:absolute;inset:0;border-radius:99px;background:var(--sur3);border:1px solid var(--bdr);transition:.25s"></div>
         <div id="dan-unused-knob" style="position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#999;box-shadow:0 1px 4px rgba(0,0,0,.4);transition:.25s"></div>
       </div>
+    </div>
+    <div class="form-group" id="dan-refund-group" style="display:none">
+      <label class="form-label">Είδος εξόδου</label>
+      <select class="form-select" id="dan-refund">
+        <option value="">Κανονικό έξοδο</option>
+        <option value="pending">🔁 Εγγύηση — θα επιστραφεί</option>
+        <option value="done">✅ Εγγύηση — επιστράφηκε</option>
+      </select>
     </div>
     <div class="form-group">
       <label class="form-label">Σημείωση</label>
@@ -847,10 +857,14 @@ function showPage(id) {
 // ═══════════════════════════════════════════
 //  DASHBOARD
 // ═══════════════════════════════════════════
+// Έξοδα Δανείου: οι εγγυήσεις (refund pending/done) δεν είναι πραγματικό κόστος
+const danRealExp = () => DB.dan.filter(e=>e.type==='Έξοδα Δανείου' && !e.refund).reduce((s,e)=>s+(+e.amount||0),0);
+const danHeldDeposit = () => DB.dan.filter(e=>e.type==='Έξοδα Δανείου' && e.refund==='pending').reduce((s,e)=>s+(+e.amount||0),0);
+
 function renderDashboard() {
   const total = DB.tl.reduce((s,e)=>s+(+e.cost||0),0);
   const loanOut = DB.dan.filter(e=>e.type==='Εκταμίευση').reduce((s,e)=>s+(+e.amount||0),0);
-  const loanExp = DB.dan.filter(e=>e.type==='Έξοδα Δανείου').reduce((s,e)=>s+(+e.amount||0),0);
+  const loanExp = danRealExp();
   const totalApproved = DB.loanSrc.reduce((s,x)=>s+(+x.approved||0),0);
   const loanRem = totalApproved - loanOut;
   const futTotal = DB.fut.filter(f=>f.status!=='Ολοκληρώθηκε').reduce((s,f)=>s+(+f.cost||0),0);
@@ -868,6 +882,8 @@ function renderDashboard() {
   document.getElementById('d-loan-rem').textContent = fmt(loanRem);
   document.getElementById('d-own').textContent = fmt(ownCapital);
   document.getElementById('d-loan-exp').textContent = fmt(loanExp);
+  const heldEl = document.getElementById('d-loan-held');
+  if (heldEl) { const h = danHeldDeposit(); heldEl.style.display = h>0 ? 'block' : 'none'; heldEl.textContent = '🔁 Εγγυήσεις προς επιστροφή: '+fmt(h); }
 
   // NBG1
   const nbg1 = DB.loanSrc.find(x=>x.id==='nbg1');
@@ -1229,10 +1245,11 @@ function renderDaneiaPage() {
 
   const totalAppr = DB.loanSrc.reduce((s,x)=>s+(+x.approved||0),0);
   const totalOut = DB.dan.filter(e=>e.type==='Εκταμίευση').reduce((s,e)=>s+(+e.amount||0),0);
-  const totalExp = DB.dan.filter(e=>e.type==='Έξοδα Δανείου').reduce((s,e)=>s+(+e.amount||0),0);
+  const totalExp = danRealExp();
   document.getElementById('loan-total-appr').textContent = fmt(totalAppr);
   document.getElementById('loan-total-out').textContent = fmt(totalOut);
   document.getElementById('loan-total-exp').textContent = fmt(totalExp);
+  document.getElementById('loan-total-held').textContent = fmt(danHeldDeposit());
   const unusedEl = document.getElementById('unused-loan-input');
   if (unusedEl) unusedEl.value = unusedLoan ? unusedLoan.toFixed(2) : '';
 
@@ -1245,10 +1262,12 @@ function renderDaneiaPage() {
       <div class="row-body">
         <div class="row-title">${e.desc}</div>
         <div class="row-sub"><span>${fmtDate(e.date)}</span>${e.source&&e.source!=='—'?`<span>${e.source}</span>`:''}</div>
+        ${e.refund==='pending'?`<div class="row-note">🔁 Εγγύηση — επιστρέφεται όταν αποπληρωθεί το δάνειο</div>`:''}
+        ${e.refund==='done'?`<div class="row-note">✅ Επιστράφηκε</div>`:''}
         ${e.note?`<div class="row-note">📌 ${e.note}</div>`:''}
       </div>
       <div class="row-right">
-        <div class="row-amt" style="color:${isEkt?'var(--green)':'var(--red-l)'}">${isEkt?'+':'−'}${fmt(+e.amount)}</div>
+        <div class="row-amt" style="color:${isEkt?'var(--green)':(e.refund==='pending'?'var(--orange-l)':(e.refund==='done'?'var(--muted)':'var(--red-l)'))}">${isEkt?'+':'−'}${fmt(+e.amount)}</div>
         <div class="row-actions"><div class="btn-icon" onclick="editDan(${e.id})">✏️</div></div>
       </div>
     </div>`;
@@ -1267,6 +1286,7 @@ function openDanModal() {
   populateDanSource();
   danTypeChange();
   setDanUnusedToggle(false);
+  document.getElementById('dan-refund').value = '';
   document.getElementById('dan-modal').classList.add('on');
 }
 
@@ -1283,6 +1303,7 @@ function editDan(id) {
   populateDanSource(e.source);
   danTypeChange();
   setDanUnusedToggle(e.unused===true);
+  document.getElementById('dan-refund').value = e.refund||'';
   document.getElementById('dan-delete-btn').style.display = 'block';
   document.getElementById('dan-modal').classList.add('on');
 }
@@ -1297,6 +1318,8 @@ function danTypeChange() {
   document.getElementById('dan-src-group').style.display = t==='Εκταμίευση' ? 'block' : 'none';
   const row = document.getElementById('dan-unused-row');
   if (row) row.style.display = t==='Εκταμίευση' ? 'flex' : 'none';
+  const rg = document.getElementById('dan-refund-group');
+  if (rg) rg.style.display = t==='Έξοδα Δανείου' ? 'block' : 'none';
 }
 
 let danIsUnused = false;
@@ -1331,13 +1354,14 @@ function saveDan() {
   if (!desc) { toast('⚠️ Συμπλήρωσε Περιγραφή'); return; }
   if (isNaN(amount)||amount<=0) { toast('⚠️ Εισαγωγή έγκυρου ποσού'); return; }
   const unused = type==='Εκταμίευση' ? danIsUnused : false;
+  const refund = type==='Έξοδα Δανείου' ? document.getElementById('dan-refund').value : '';
   pushUndo();
   const editId = +document.getElementById('dan-edit-id').value;
   if (editId) {
     const idx = DB.dan.findIndex(x=>x.id===editId);
-    if (idx>=0) DB.dan[idx] = {...DB.dan[idx], type,source,desc,amount,date,note,unused};
+    if (idx>=0) DB.dan[idx] = {...DB.dan[idx], type,source,desc,amount,date,note,unused,refund};
   } else {
-    DB.dan.push({id:nextId(DB.dan),type,source,desc,amount,date,note,unused});
+    DB.dan.push({id:nextId(DB.dan),type,source,desc,amount,date,note,unused,refund});
   }
   recalcUnusedLoan();
   saveAll(false); closeModal('dan-modal'); renderDaneiaPage(); renderDashboard();
@@ -2090,7 +2114,7 @@ function buildTLRows(entries, ss) {
       cells.push(`<c r="E${r}" s="${s.E}" />`);
     }
 
-    const note = (e.note||'').trim();
+    const note = ((e.refund==='pending'?'[Εγγύηση - θα επιστραφεί] ':e.refund==='done'?'[Εγγύηση - επιστράφηκε] ':'')+(e.note||'')).trim();
     if (note) {
       const fi = ssIndex(ss, note);
       cells.push(`<c r="F${r}" s="${s.F}" t="s"><v>${fi}</v></c>`);
