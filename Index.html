@@ -127,6 +127,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
 .btn-orange{background:rgba(200,134,42,.15);color:var(--orange-l);border:1px solid rgba(200,134,42,.3)}
 .fab{position:fixed;bottom:20px;right:16px;width:52px;height:52px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;box-shadow:0 4px 20px rgba(74,143,63,.5);z-index:200;transition:.15s}
 .fab:active{transform:scale(.92)}
+.fab{font-size:28px;font-weight:300;line-height:1;user-select:none}
+.fab span{display:block;transition:transform .2s}
+.fab.open span{transform:rotate(45deg)}
+#fabBack{position:fixed;inset:0;z-index:198;display:none;background:rgba(0,0,0,.45)}
+#fabBack.on{display:block}
+#fabMenu{position:fixed;right:16px;bottom:84px;z-index:199;display:none;flex-direction:column;gap:8px;align-items:flex-end}
+#fabMenu.on{display:flex}
+#fabMenu button{background:var(--sur,#1e1e1e);color:var(--txt,#fff);border:1px solid var(--bdr,rgba(255,255,255,.15));border-radius:24px;padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);font-family:inherit;white-space:nowrap}
+#fabMenu button:active{transform:scale(.96)}
 
 /* ── MODAL ── */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;display:none;align-items:flex-end}
@@ -418,11 +427,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
 </div><!-- /content -->
 
 <!-- FABs per page -->
-<div class="fab" id="fab-tl" style="display:none" onclick="openTLModal()">＋</div>
-<div class="fab" id="fab-dan" style="display:none" onclick="openDanModal()">＋</div>
 
-<div class="fab" id="fab-fut" style="display:none" onclick="openFutModal()">＋</div>
-<div class="fab" id="fab-ens" style="display:none" onclick="openEnsModal()">＋</div>
 
 <!-- ══════════ MODAL: TIMELINE ENTRY ══════════ -->
 <div class="overlay" id="tl-modal">
@@ -577,6 +582,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
 </div>
 
 <!-- ══════════ MODAL: ΕΝΣΗΜΑ ══════════ -->
+<div id="fabBack" onclick="toggleFabMenu(false)"></div>
+<div id="fabMenu">
+  <button onclick="fabPick('openTLModal')">🧱 Νέο έξοδο κατασκευής</button>
+  <button onclick="fabPick('openDanModal')">🏦 Νέα εγγραφή δανείου</button>
+  <button onclick="fabPick('openEnsModal')">🧾 Νέο ένσημο</button>
+  <button onclick="fabPick('openFutModal')">🔮 Νέο μελλοντικό έξοδο</button>
+</div>
+<div class="fab" id="fab-main" onclick="toggleFabMenu()" title="Νέα καταχώρηση"><span>＋</span></div>
+
 <div class="overlay" id="ens-modal">
   <div class="modal">
     <div class="modal-hdr">
@@ -837,7 +851,16 @@ function todayISO() { return new Date().toISOString().split('T')[0]; }
 //  NAVIGATION
 // ═══════════════════════════════════════════
 let currentPage = 'dashboard';
+function toggleFabMenu(force) {
+  const on = typeof force === 'boolean' ? force : !document.getElementById('fabMenu').classList.contains('on');
+  document.getElementById('fabMenu').classList.toggle('on', on);
+  document.getElementById('fabBack').classList.toggle('on', on);
+  document.getElementById('fab-main').classList.toggle('open', on);
+}
+function fabPick(fn) { toggleFabMenu(false); window[fn](); }
+
 function showPage(id) {
+  toggleFabMenu(false);
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('on'));
   document.getElementById(id).classList.add('on');
@@ -846,10 +869,6 @@ function showPage(id) {
     if(t.getAttribute('onclick')&&t.getAttribute('onclick').includes(id)) t.classList.add('on');
   });
   // FABs
-  const _ftl=document.getElementById('fab-tl'); if(_ftl) _ftl.style.display = id==='timeline' ? 'flex' : 'none';
-  const _fdn=document.getElementById('fab-dan'); if(_fdn) _fdn.style.display = id==='daneiaPage' ? 'flex' : 'none';
-  const _fft=document.getElementById('fab-fut'); if(_fft) _fft.style.display = id==='future' ? 'flex' : 'none';
-  const _fen=document.getElementById('fab-ens'); if(_fen) _fen.style.display = id==='ensimaPage' ? 'flex' : 'none';
 
   currentPage = id;
   if(id==='dashboard') renderDashboard();
