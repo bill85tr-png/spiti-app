@@ -339,7 +339,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
   </div>
   <div class="card" id="ens-cat-breakdown" style="padding:10px 14px;display:none"></div>
   <div class="card">
-    <div style="font-size:11px;color:var(--muted);padding-bottom:8px;font-style:italic">Αντλείται αυτόματα από το Timeline (γραμμές που περιέχουν «Ένσημ»)</div>
+    <div style="font-size:11px;color:var(--muted);padding-bottom:8px;font-style:italic">Αντλείται από το Timeline (γραμμές που περιέχουν «Ένσημ»). Πάτα ＋ για νέο ένσημο.</div>
     <div id="ens-list"></div>
   </div>
   <div style="height:70px"></div>
@@ -362,7 +362,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
       <button class="btn btn-blue" onclick="exportXLSX()" id="btn-xlsx" style="padding:8px 14px;font-size:12px">Export</button>
     </div>
     <div class="set-row">
-      <div><div class="set-lbl">📄 Εξαγωγή PDF</div><div class="set-sub">Αποθηκεύει αναφορά ως HTML για εκτύπωση</div></div>
+      <div><div class="set-lbl">📄 Εξαγωγή PDF</div><div class="set-sub">Κατεβάζει πλήρη αναφορά σε αρχείο PDF</div></div>
       <button class="btn btn-orange" onclick="exportPDF()" style="padding:8px 14px;font-size:12px">Export</button>
     </div>
     <div class="set-row">
@@ -422,6 +422,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
 <div class="fab" id="fab-dan" style="display:none" onclick="openDanModal()">＋</div>
 
 <div class="fab" id="fab-fut" style="display:none" onclick="openFutModal()">＋</div>
+<div class="fab" id="fab-ens" style="display:none" onclick="openEnsModal()">＋</div>
 
 <!-- ══════════ MODAL: TIMELINE ENTRY ══════════ -->
 <div class="overlay" id="tl-modal">
@@ -579,13 +580,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
 <div class="overlay" id="ens-modal">
   <div class="modal">
     <div class="modal-hdr">
-      <div class="modal-title" id="ens-modal-title">Νέα Εγγραφή Ενσήμων</div>
+      <div class="modal-title" id="ens-modal-title">Νέο Ένσημο</div>
       <div class="modal-close" onclick="closeModal('ens-modal')">✕</div>
     </div>
     <input type="hidden" id="ens-edit-id">
     <div class="form-group">
       <label class="form-label">Ημερομηνία *</label>
       <input class="form-input" id="ens-date" type="date">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Περιγραφή</label>
+      <input class="form-input" id="ens-desc" placeholder="π.χ. Ένσημα Οκτωβρίου">
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -844,6 +849,7 @@ function showPage(id) {
   const _ftl=document.getElementById('fab-tl'); if(_ftl) _ftl.style.display = id==='timeline' ? 'flex' : 'none';
   const _fdn=document.getElementById('fab-dan'); if(_fdn) _fdn.style.display = id==='daneiaPage' ? 'flex' : 'none';
   const _fft=document.getElementById('fab-fut'); if(_fft) _fft.style.display = id==='future' ? 'flex' : 'none';
+  const _fen=document.getElementById('fab-ens'); if(_fen) _fen.style.display = id==='ensimaPage' ? 'flex' : 'none';
 
   currentPage = id;
   if(id==='dashboard') renderDashboard();
@@ -1570,6 +1576,7 @@ function openEnsModal() {
   document.getElementById('ens-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('ens-days').value = '';
   document.getElementById('ens-amount').value = '';
+  document.getElementById('ens-desc').value = '';
   document.getElementById('ens-delete-btn').style.display = 'none';
   populateEnsCat('');
   document.getElementById('ens-modal').classList.add('on');
@@ -1596,19 +1603,17 @@ function populateEnsCat(selected) {
 function saveEns() {
   const date   = document.getElementById('ens-date').value.trim();
   const days   = parseFloat(document.getElementById('ens-days').value)||0;
-  const amount = parseFloat(document.getElementById('ens-amount').value)||0;
+  const cost   = parseFloat(document.getElementById('ens-amount').value)||0;
   const cat    = document.getElementById('ens-cat').value;
-  if(!date || !amount) { toast('⚠️ Συμπλήρωσε ημερομηνία και ποσό'); return; }
-  const editId = +document.getElementById('ens-edit-id').value;
+  let desc     = document.getElementById('ens-desc').value.trim();
+  if(!date || !cost) { toast('⚠️ Συμπλήρωσε ημερομηνία και ποσό'); return; }
+  if(!/ενσημ|ένσημ/i.test(desc)) desc = desc ? 'Ένσημα — '+desc : 'Ένσημα';
+  const note = days ? 'Ημέρες εργασίας: '+days : '';
   pushUndo();
-  if(editId) {
-    const idx = DB.ens.findIndex(x=>x.id===editId);
-    if(idx>=0) DB.ens[idx] = {...DB.ens[idx], date, days, amount, cat};
-  } else {
-    DB.ens.push({id:nextId(DB.ens), date, days, amount, cat});
-  }
-  saveAll(false); closeModal('ens-modal'); renderEnsima();
-  toast('✅ Αποθηκεύτηκε');
+  DB.tl.push({id:nextId(DB.tl), desc, cost, date, cat, note, fromLoan:false});
+  recalcUnusedLoan();
+  saveAll(false); closeModal('ens-modal'); renderEnsima(); renderTimeline(); renderDashboard();
+  toast('✅ Προστέθηκε στο Timeline');
 }
 
 function deleteEns() {
@@ -1808,69 +1813,69 @@ function escCSV(v) {
 //  JSON EXPORT
 // ═══════════════════════════════════════════
 
-function exportPDF() {
-  const GR_MONTHS = ['','Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος',
-                     'Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος'];
+function buildPdfDoc() {
+  const R = reportData();
+  const GRM = ['','Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος','Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος'];
+  const GREEN='#2d5a1b', H = t => ({text:t,bold:true,color:'#fff',fillColor:'#3a7d1e',fontSize:8});
+  const HR = t => ({...H(t),alignment:'right'});
+  const R_ = t => ({text:t,alignment:'right'});
+  const sec = t => ({text:t,style:'h2'});
+  const tbl = (widths,head,body,extra={}) => ({table:{headerRows:1,widths,body:[head,...body]},layout:'lightHorizontalLines',margin:[0,0,0,4],...extra});
+
+  const kpis = [['Συνολικό κόστος κατασκευής',R.total],['Εκταμιευθέντα δάνεια',R.loanOut],['Υπόλοιπο δανείων',R.loanRem],
+    ['Έξοδα δανείων (πραγματικά)',R.loanExp],['Εγγυήσεις προς επιστροφή',R.held],['Αχρησιμοποίητο δάνειο',R.unusedPool],
+    ['Καθαρά / ίδια κεφάλαια',R.own],['Μελλοντικά έξοδα (εκκρεμή)',R.futTotal]];
+  const kpiBody = kpis.map(k=>[k[0],{text:fmt(k[1]),bold:true,alignment:'right'}]);
 
   const tlSorted = [...DB.tl].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-  const total = tlSorted.reduce((s,e)=>s+(+e.cost||0),0);
-
-  const months = {};
-  tlSorted.forEach(e=>{
-    const k = e.date ? e.date.slice(0,7) : '0000-00';
-    if(!months[k]) months[k]=[];
-    months[k].push(e);
+  const months = {}; tlSorted.forEach(e=>{ const k=e.date?e.date.slice(0,7):'0000-00'; (months[k]=months[k]||[]).push(e); });
+  const tlBody = [];
+  Object.entries(months).forEach(([k,items])=>{
+    const [y,m]=k.split('-'); const tot=items.reduce((s,e)=>s+(+e.cost||0),0);
+    tlBody.push([{text:k==='0000-00'?'—':GRM[+m]+' '+y,colSpan:3,bold:true,color:'#fff',fillColor:GREEN},{},{},{text:fmt(tot),alignment:'right',bold:true,color:'#fff',fillColor:GREEN},{text:'',fillColor:GREEN}]);
+    items.forEach(e=>tlBody.push([e.date?fmtDate(e.date):'—',e.desc||'—',e.cat||'—',R_(fmt(+e.cost||0)),{text:((e.fromLoan===true?'[Από δάνειο] ':'')+(e.note||'')),fontSize:7,color:'#666'}]));
   });
+  tlBody.push([{text:'ΣΥΝΟΛΟ',colSpan:3,bold:true,fillColor:'#e8f5e9'},{},{},{text:fmt(R.total),alignment:'right',bold:true,fillColor:'#e8f5e9'},{text:'',fillColor:'#e8f5e9'}]);
 
-  const rows = Object.entries(months).map(([key,items])=>{
-    const [yr,mo] = key.split('-');
-    const mLabel = key==='0000-00' ? '—' : (GR_MONTHS[+mo] + ' ' + yr);
-    const mTotal = items.reduce((s,e)=>s+(+e.cost||0),0);
-    const dataRows = items.map((e,i)=>
-      '<tr style="background:'+(i%2===0?'#f9f9f9':'#fff')+'">' +
-      '<td>'+(e.date ? fmtDate(e.date) : '—')+'</td>' +
-      '<td>'+(e.desc||'—')+'</td>' +
-      '<td style="text-align:right;font-weight:600">'+fmt(+e.cost||0)+'</td>' +
-      '<td>'+(e.cat||'—')+'</td>' +
-      '<td style="color:#666;font-size:11px">'+(e.note||'')+'</td>' +
-      '</tr>'
-    ).join('');
-    return '<tr style="background:#2d5a1b;color:#fff">' +
-      '<td colspan="5" style="font-weight:700;padding:6px 8px">'+mLabel+'</td>' +
-      '<td style="text-align:right;font-weight:700">'+fmt(mTotal)+'</td>' +
-      '</tr>' + dataRows;
-  }).join('');
+  const dn = [...DB.dan].sort((a,b)=>(a.date||'0').localeCompare(b.date||'0')).map(e=>[
+    e.date?fmtDate(e.date):'—', e.type, (e.source&&e.source!=='—')?e.source:'', e.desc||'', R_(fmt(+e.amount||0)),
+    {text:[refundLbl(e),(e.type==='Εκταμίευση'&&e.unused===true)?'Αχρησιμοποίητο':'',e.note||''].filter(Boolean).join(' · '),fontSize:7,color:'#666'}]);
 
-  const date = new Date().toLocaleDateString('el-GR');
-  const scr = '<scr'+'ipt>window.onload=()=>window.print();<'+'/scr'+'ipt>';
-  const html = '<!DOCTYPE html><html lang="el"><head><meta charset="UTF-8">' +
-    '<title>Κόστος Σπιτιού</title>' +
-    '<style>' +
-    'body{font-family:Arial,sans-serif;font-size:12px;margin:20px;color:#222}' +
-    'h1{font-size:18px;color:#2d5a1b;margin-bottom:4px}' +
-    '.sub{color:#666;font-size:12px;margin-bottom:16px}' +
-    'table{width:100%;border-collapse:collapse;margin-top:8px}' +
-    'th{background:#3a7d1e;color:#fff;padding:7px 8px;text-align:left;font-size:11px}' +
-    'td{padding:5px 8px;border-bottom:1px solid #eee;vertical-align:top}' +
-    '.tot{background:#e8f5e9;font-weight:700;font-size:13px;padding:8px;margin-bottom:8px}' +
-    '@media print{body{margin:8px}}' +
-    '</style>' + scr +
-    '</head><body>' +
-    '<h1>🏠 Κόστος Κατασκευής Σπιτιού</h1>' +
-    '<div class="sub">Εξαγωγή: ' + date + ' &nbsp;|&nbsp; Εγγραφές: ' + DB.tl.length + '</div>' +
-    '<div class="tot">💰 Συνολικό Κόστος: ' + fmt(total) + '</div>' +
-    '<table><thead><tr>' +
-    '<th>Ημερομηνία</th><th>Περιγραφή</th><th>Κόστος</th><th>Κατηγορία</th><th>Σημείωση</th><th>Σύνολο μήνα</th>' +
-    '</tr></thead><tbody>' + rows + '</tbody></table>' +
-    '</body></html>';
+  const content = [
+    {text:'Κόστος Κατασκευής Σπιτιού',style:'h1'},
+    {text:'Εξαγωγή: '+new Date().toLocaleDateString('el-GR')+'   |   Εγγραφές: '+DB.tl.length,color:'#666',margin:[0,0,0,6]},
+    sec('Σύνοψη'), {table:{widths:['*',120],body:kpiBody},layout:'lightHorizontalLines',margin:[0,0,0,4]},
+    sec('Πηγές Δανεισμού'),
+    tbl(['*',65,65,65,38,50],[H('Πηγή'),HR('Εγκεκριμένο'),HR('Εκταμιευθέν'),HR('Υπόλοιπο'),HR('%'),H('Κατάσταση')],
+      R.srcRows.map(s=>[s.name,R_(fmt(s.approved)),R_(fmt(s.out)),R_(fmt(s.rem)),R_((s.pct*100).toFixed(1)+'%'),s.status])),
+    sec('Κόστος ανά Κατηγορία'),
+    tbl(['*',80,55,50],[H('Κατηγορία'),HR('Κόστος'),HR('% Συνόλου'),HR('Εγγραφές')],
+      R.catRows.map(c=>[c.name,R_(fmt(c.amt)),R_((c.pct*100).toFixed(1)+'%'),R_(String(c.n))])),
+    {text:'Timeline Εξόδων',style:'h2',pageBreak:'before'},
+    tbl([48,'*',85,62,85],[H('Ημερομηνία'),H('Περιγραφή'),H('Κατηγορία'),HR('Κόστος'),H('Σημείωση')],tlBody),
+    sec('Timeline Δανείων'),
+    tbl([46,50,70,'*',58,90],[H('Ημ/νία'),H('Τύπος'),H('Πηγή'),H('Περιγραφή'),HR('Ποσό'),H('Σημειώσεις')],dn),
+    sec('Μελλοντικά Έξοδα'),
+    tbl(['*',100,60,55],[H('Περιγραφή'),H('Κατηγορία'),HR('Κόστος'),H('Κατάσταση')],
+      [...DB.fut.map(f=>[f.desc||'',f.cat||'—',R_(fmt(+f.cost||0)),f.status||'Εκκρεμεί']),
+       [{text:'Σύνολο εκκρεμών',colSpan:2,bold:true,fillColor:'#e8f5e9'},{},{text:fmt(R.futTotal),alignment:'right',bold:true,fillColor:'#e8f5e9'},{text:'',fillColor:'#e8f5e9'}]])
+  ];
+  if (R.ens.length) content.push(sec('Ένσημα'),
+    tbl([48,'*',70],[H('Ημ/νία'),H('Περιγραφή'),HR('Κόστος')],R.ens.map(e=>[fmtDate(e.date),e.desc||'',R_(fmt(+e.cost||0))])));
+  return { pageSize:'A4', pageMargins:[28,28,28,34], content,
+    defaultStyle:{fontSize:8.5},
+    styles:{h1:{fontSize:18,bold:true,color:GREEN},h2:{fontSize:12,bold:true,color:GREEN,margin:[0,12,0,4]}},
+    footer:(c,t)=>({text:c+' / '+t,alignment:'center',fontSize:8,color:'#888'}) };
+}
 
-  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'Κόστος_Σπιτιού_' + new Date().toISOString().split('T')[0] + '.html';
-  a.click();
-  URL.revokeObjectURL(a.href);
-  toast('📄 Αποθηκεύτηκε για εκτύπωση');
+async function exportPDF() {
+  try {
+    const load = src => new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('Δεν φορτώθηκε η βιβλιοθήκη PDF (χρειάζεται internet)')); document.head.appendChild(s); });
+    if (!window.pdfMake) await load('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js');
+    if (!window.pdfMake.vfs || !window.pdfMake.vfs['Roboto-Regular.ttf']) await load('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js');
+    pdfMake.createPdf(buildPdfDoc()).download('Κόστος_Σπιτιού_' + new Date().toISOString().split('T')[0] + '.pdf');
+    toast('📄 PDF εξήχθη!');
+  } catch(e) { toast('❌ Σφάλμα PDF: ' + e.message); console.error(e); }
 }
 
 function exportJSON() {
@@ -1911,6 +1916,98 @@ async function exportXLSX() {
   }
 }
 
+// ── Κοινά δεδομένα αναφορών (Excel + PDF) ─────────────────────
+function reportData() {
+  const sum = (a,f) => a.reduce((s,x)=>s+(+f(x)||0),0);
+  const total = sum(DB.tl,e=>e.cost);
+  const ekt = DB.dan.filter(e=>e.type==='Εκταμίευση');
+  const loanOut = sum(ekt,e=>e.amount);
+  const approved = sum(DB.loanSrc,s=>s.approved);
+  const pool = sum(ekt.filter(e=>e.unused===true),e=>e.amount);
+  const used = sum(DB.tl.filter(e=>e.fromLoan===true&&(e.date||'')>=TL_CUTOFF),e=>e.cost);
+  const ownNew = sum(DB.tl.filter(e=>e.fromLoan!==true&&(e.date||'')>=TL_CUTOFF),e=>e.cost);
+  const own = capitalBase + ownNew + Math.max(0,used-pool);
+  const cats = {};
+  DB.tl.forEach(e=>{ const c=e.cat||'—'; cats[c]=cats[c]||{amt:0,n:0}; cats[c].amt+=+e.cost||0; cats[c].n++; });
+  const catRows = Object.entries(cats).sort((a,b)=>b[1].amt-a[1].amt)
+    .map(([name,v])=>({name,amt:v.amt,n:v.n,pct:total?v.amt/total:0}));
+  const srcRows = DB.loanSrc.map(s=>{
+    const out = sum(ekt.filter(e=>e.source===s.name),e=>e.amount), ap=+s.approved||0;
+    const pct = ap>0?out/ap:0;
+    return {name:s.name,approved:ap,out,rem:ap-out,pct,status:out===0?'Αδιάθετο':(pct>=1?'Πλήρες':'Μερική')};
+  });
+  const futOpen = DB.fut.filter(f=>f.status!=='Ολοκληρώθηκε');
+  const ens = DB.tl.filter(e=>/ενσημ|ένσημ/i.test(e.desc||'')).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  return { total, loanOut, approved, loanRem:approved-loanOut, loanExp:danRealExp(), held:danHeldDeposit(),
+           own, unusedPool:Math.max(0,pool-used), capitalBase, futTotal:sum(futOpen,f=>f.cost), catRows, srcRows, ens };
+}
+const refundLbl = e => e.refund==='pending'?'Εγγύηση — θα επιστραφεί':(e.refund==='done'?'Εγγύηση — επιστράφηκε':'');
+
+// ── Προσθήκες μέσα στη δομή του προτύπου (Dashboard + Δάνεια) ──
+const TPL_SOURCES = ['NBG — 1ο Δάνειο','NBG — 2ο Δάνειο','Δάνειο Χάλυψ','Δάνειο Φίλου'];
+const TPL_CATS = ['Αμοιβές Μηχανικών','Άδεια / Γραφειοκρατία','Υδραυλικά','Χτίσιμο / Τοιχοποιία','Σοβάτισμα / Επιχρίσματα','Κουφώματα / Μέταλλα','Ηλεκτρολογικά','Μπετά / Σκελετός','Δώρο Πατέρα','Διάφορα'];
+const xe = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function addReportExtras(dashXml, danXml, ss) {
+  const R = reportData();
+  const S  = (ref,s,t) => `<c r="${ref}" s="${s}" t="s"><v>${ssIndex(ss,t)}</v></c>`;
+  const N  = (ref,s,v) => `<c r="${ref}" s="${s}"><v>${v}</v></c>`;
+  const F  = (ref,s,f,v) => `<c r="${ref}" s="${s}"><f>${xe(f)}</f><v>${v}</v></c>`;
+  const E  = (ref,s) => `<c r="${ref}" s="${s}"/>`;
+  const addTo = (xml,row,cells) => xml.replace(new RegExp('(<row r="'+row+'"[^>]*>[\\s\\S]*?)(</row>)'), (m,a,b)=>a+cells+b);
+
+  // ── Δάνεια: στήλες H:L με τις επιπλέον πηγές (π.χ. Καταναλωτικό) ──
+  const extra = R.srcRows.filter(s=>!TPL_SOURCES.includes(s.name)).slice(0,4);
+  const KEKT = '(A15:A199="Εκταμίευση")*(B15:B199=H{r})*D15:D199';
+  danXml = addTo(danXml,4,S('H4',4,'Επιπλέον πηγές')+S('I4',4,'Εγκεκριμένο (€)')+S('J4',4,'Εκταμιευθέν (€)')+S('K4',4,'Υπόλοιπο (€)')+S('L4',4,'Εκταμ. %'));
+  for (let i=0;i<4;i++) {
+    const r=5+i, s=extra[i];
+    danXml = addTo(danXml,r, s
+      ? S('H'+r,12,s.name)+N('I'+r,13,s.approved)+F('J'+r,14,`SUMPRODUCT(${KEKT.replace('{r}',r)})`,s.out)+F('K'+r,15,`I${r}-J${r}`,s.rem)+F('L'+r,16,`IF(I${r}>0,J${r}/I${r},0)`,s.pct)
+      : E('H'+r,12)+E('I'+r,13)+E('J'+r,14)+E('K'+r,15)+E('L'+r,16));
+  }
+  danXml = addTo(danXml,9,S('H9',60,'Εγγυήσεις προς επιστροφή')+E('I9',26)+
+    F('J9',27,'SUMPRODUCT((A15:A199="Έξοδα Δανείου")*ISNUMBER(SEARCH("[Εγγύηση - θα επιστραφεί",F15:F199))*D15:D199)',R.held)+E('K9',26)+E('L9',28));
+  const extOut = extra.reduce((s,x)=>s+x.out,0), extAp = extra.reduce((s,x)=>s+x.approved,0);
+  danXml = addTo(danXml,10,S('H10',29,'ΣΥΝΟΛΟ (όλες οι πηγές)')+F('I10',30,'B10+SUM(I5:I8)',135500+extAp)+F('J10',30,'C10+SUM(J5:J8)',R.loanOut)+F('K10',30,'D10+SUM(K5:K8)',R.loanRem)+F('L10',31,'IF(I10>0,J10/I10,0)',R.approved?R.loanOut/R.approved:0));
+  danXml = danXml.replace(/<cols>([\s\S]*?)<\/cols>/, '<cols>$1<col min="7" max="7" width="3" customWidth="1"/><col min="8" max="8" width="28" style="1" customWidth="1"/><col min="9" max="12" width="16" style="1" customWidth="1"/></cols>');
+  // Έξοδα Δανείου (πραγματικά): χωρίς τις εγγυήσεις
+  danXml = danXml.replace(/<f>SUMPRODUCT\(\(A15:A199=(?:"|&quot;)Έξοδα Δανείου(?:"|&quot;)\)\*D15:D199\)<\/f>/,
+    '<f>SUMPRODUCT((A15:A199="Έξοδα Δανείου")*ISERROR(SEARCH("[Εγγύηση",F15:F199))*D15:D199)</f>');
+  extra.forEach((s,i)=>{ danXml = danXml.replace(/(<conditionalFormatting sqref="B14:B5000">)/, `$1<cfRule type="expression" dxfId="82" priority="${40+i}"><formula>$B14="${xe(s.name)}"</formula></cfRule>`); });
+  danXml = danXml.replace(/ spans="[^"]*"/g,'').replace(/<dimension ref="[^"]*"\/>/,'<dimension ref="A1:L438"/>');
+
+  // ── Dashboard: διορθώσεις + συμπληρωματικό block ──
+  dashXml = dashXml.replace(/COUNTIF\(Timeline!E\d+:E199,A(\d+)\)/g,'COUNTIF(Timeline!E6:E199,A$1)')
+                   .replace(/Timeline!E6:E99/g,'Timeline!E6:E199').replace(/Timeline!C6:C99/g,'Timeline!C6:C199')
+                   .replace(/COUNTIF\(Δάνεια!A15:A199,A20\)/,'COUNTIFS(Δάνεια!A15:A199,A20,Δάνεια!F15:F199,"&lt;&gt;*[Εγγύηση*")');
+  const rows = []; let r = 50;
+  const row = (n,cells,ht='19.5') => rows.push(`<row r="${n}" ht="${ht}" customHeight="1">${cells}</row>`);
+  { const h=r++; row(h, S('A'+h,3,'Συμπληρωματικά στοιχεία')+S('B'+h,5,'Ποσό (€)')+E('C'+h,4)+E('D'+h,4)+E('E'+h,4), '21.75'); }
+  extra.forEach((s,i)=>{ row(r, S('A'+r,64,s.name)+F('B'+r,65,`Δάνεια!J${5+i}`,s.out)); r++; });
+  row(r, S('A'+r,64,'Εκταμιευθέντα (όλα)')+F('B'+r,65,'Δάνεια!J10',R.loanOut)); r++;
+  row(r, S('A'+r,64,'Έξοδα δανείων')+F('B'+r,65,'Δάνεια!C9',R.loanExp)); r++;
+  row(r, S('A'+r,64,'Εγγυήσεις (επιστροφή)')+F('B'+r,65,'Δάνεια!J9',R.held)); r++;
+  row(r, S('A'+r,64,'Αχρησιμοποίητο δάνειο')+N('B'+r,65,R.unusedPool)); r++;
+  row(r, S('A'+r,64,'Καθαρά / ίδια κεφάλαια')+N('B'+r,65,R.own)); r++;
+  row(r, S('A'+r,64,'Μελλοντικά (εκκρεμή)')+F('B'+r,65,"'Μελλοντικά Έξοδα'!C3",R.futTotal)); r++;
+  const ecats = DB.cats.map(c=>c.name).filter(n=>!TPL_CATS.includes(n));
+  let x1=0,x2=0;
+  if (ecats.length) {
+    r++; row(r++, S('A'+(r-1),3,'Λοιπές κατηγορίες')+S('B'+(r-1),5,'Κόστος (€)')+S('C'+(r-1),4,'% Συνόλου')+S('D'+(r-1),4,'Εγγραφές')+E('E'+(r-1),4), '21.75');
+    x1=r;
+    ecats.forEach(n=>{ const c=R.catRows.find(k=>k.name===n)||{amt:0,n:0,pct:0};
+      row(r, S('A'+r,64,n)+F('B'+r,65,`SUMPRODUCT((Timeline!E6:E199=A${r})*ISNUMBER(Timeline!C6:C199)*Timeline!C6:C199)`,c.amt)+F('C'+r,66,`IF(B21>0,B${r}/B21,0)`,c.pct)+F('D'+r,67,`COUNTIF(Timeline!E6:E199,A${r})`,c.n)); x2=r; r++; });
+    dashXml = dashXml.replace('<f>SUM(B10:B20)</f>',`<f>SUM(B10:B20)+SUM(B${x1}:B${x2})</f>`).replace('<f>SUM(D10:D20)</f>',`<f>SUM(D10:D20)+SUM(D${x1}:D${x2})</f>`);
+  }
+  dashXml = dashXml.replace(/(<c r="A23"[^>]*>\s*<f>[\s\S]*?)(<\/f>)/, (m,a,b)=>{
+    a = a.replace('TEXT(Δάνεια!C10,','TEXT(Δάνεια!J10,');
+    return a + (extra.length ? '&amp;"  |  '+xe(extra[0].name)+': "&amp;TEXT(Δάνεια!J5,"#,##0 €")' : '') + b; });
+  dashXml = dashXml.replace('</sheetData>', rows.join('')+'</sheetData>')
+                   .replace(/ spans="[^"]*"/g,'').replace(/<dimension ref="[^"]*"\/>/,`<dimension ref="A1:I${r}"/>`);
+  return { dashXml, danXml };
+}
+
 async function _buildXLSXfromTemplate() {
   // ── 1. Load JSZip ────────────────────────────────────────────
   if (!window.JSZip) {
@@ -1943,6 +2040,8 @@ async function _buildXLSXfromTemplate() {
   let futXml = await zip.file('xl/worksheets/sheet4.xml').async('string');
   let lstXml = await zip.file('xl/worksheets/sheet5.xml').async('string');
   let ensXml = await zip.file('xl/worksheets/sheet6.xml').async('string');
+  let dashXml = await zip.file('xl/worksheets/sheet1.xml').async('string');
+  let wbXml = await zip.file('xl/workbook.xml').async('string');
 
   tlXml  = replaceDataRows(tlXml,  buildTLRows(tlSorted, ssArr),   6);
   danXml = updateDanSources(danXml, DB.loanSrc);
@@ -1951,8 +2050,12 @@ async function _buildXLSXfromTemplate() {
   lstXml = replaceDataRows(lstXml, buildLstRows(DB.cats, DB.loanSrc, ssArr), 1);
   const ensSorted = DB.tl.filter(e => { const d=(e.desc||''); return d.includes('Ένσημ')||d.includes('ένσημ')||d.includes('Ενσημ')||d.includes('ενσημ'); }).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   ensXml = buildEnsSheet(ensXml, ensSorted, ssArr);
+  ({dashXml, danXml} = addReportExtras(dashXml, danXml, ssArr));
+  wbXml = wbXml.replace('<calcPr calcId="181029"/>','<calcPr calcId="181029" fullCalcOnLoad="1"/>');
 
   // ── 7. Write updated files ────────────────────────────────────
+  zip.file('xl/worksheets/sheet1.xml', dashXml);
+  zip.file('xl/workbook.xml', wbXml);
   zip.file('xl/worksheets/sheet2.xml', tlXml);
   zip.file('xl/worksheets/sheet3.xml', danXml);
   zip.file('xl/worksheets/sheet4.xml', futXml);
@@ -2023,7 +2126,7 @@ function parseSharedStrings(xml) {
     const tr = /<t[^>]*>([^<]*)<\/t>/g;
     let tm;
     while ((tm = tr.exec(m[1])) !== null) texts.push(tm[1]);
-    items.push(texts.join(''));
+    items.push(texts.join('').replace(/&(?:amp;)+/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'"));
   }
   return items;
 }
@@ -2114,7 +2217,7 @@ function buildTLRows(entries, ss) {
       cells.push(`<c r="E${r}" s="${s.E}" />`);
     }
 
-    const note = ((e.refund==='pending'?'[Εγγύηση - θα επιστραφεί] ':e.refund==='done'?'[Εγγύηση - επιστράφηκε] ':'')+(e.note||'')).trim();
+    const note = ((e.fromLoan===true?'[Από δάνειο] ':'')+(e.note||'')).trim();
     if (note) {
       const fi = ssIndex(ss, note);
       cells.push(`<c r="F${r}" s="${s.F}" t="s"><v>${fi}</v></c>`);
@@ -2155,7 +2258,7 @@ function buildDanRows(entries, ss) {
     if (ds) cells.push(`<c r="E${r}" s="${s.E}"><v>${ds}</v></c>`);
     else     cells.push(`<c r="E${r}" s="${s.E}" />`);
 
-    const note = (e.note||'').trim();
+    const note = ((e.refund==='pending'?'[Εγγύηση - θα επιστραφεί] ':e.refund==='done'?'[Εγγύηση - επιστράφηκε] ':'')+(e.type==='Εκταμίευση'&&e.unused===true?'[Αχρησιμοποίητο] ':'')+(e.note||'')).trim();
     if (note) {
       const fi = ssIndex(ss, note);
       cells.push(`<c r="F${r}" s="${s.F}" t="s"><v>${fi}</v></c>`);
@@ -2400,19 +2503,38 @@ let isSyncing = false;
 let tokenClient = null;
 let tokenRefreshTimer = null;
 
+let manualLogin = false, loginRetried = false;
+
 function initGoogleAuth() {
     googleUserEmail = localStorage.getItem('spitiGoogleEmail');
     driveFileId = localStorage.getItem('spitiDriveFileId');
-    const wasConnected = localStorage.getItem('spitiGoogleConnected');
 
+    // Χωρίς καμία αυτόματη σύνδεση: μόνο επαναφορά token που ισχύει ακόμα
+    const tok = localStorage.getItem('spitiGoogleToken');
+    const left = (+localStorage.getItem('spitiGoogleExpiry') || 0) - Date.now();
+    if (!googleAccessToken && tok && left > 60000) {
+        googleAccessToken = tok;
+        updateGoogleUI(true);
+        clearTimeout(tokenRefreshTimer);
+        tokenRefreshTimer = setTimeout(() => { googleAccessToken = null; updateGoogleUI(false); }, left - 30000);
+    } else if (!googleAccessToken) {
+        updateGoogleUI(false);
+    }
+
+    if (tokenClient) return true;
+    if (!window.google || !google.accounts || !google.accounts.oauth2) return false;
     tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
         scope: DRIVE_SCOPE,
         prompt: '',
         callback: (response) => {
             if (response.error) {
-                if (['interaction_required','login_required'].includes(response.error)) {
-                    if (localStorage.getItem('spitiGoogleConnected')) showReconnectBanner();
+                if (manualLogin && !loginRetried && ['interaction_required','login_required'].includes(response.error)) {
+                    loginRetried = true;
+                    tokenClient.requestAccessToken({ prompt: 'select_account', login_hint: localStorage.getItem('spitiGoogleEmail') || '' });
+                } else if (manualLogin) {
+                    manualLogin = false;
+                    showSyncToast('❌ Αποτυχία σύνδεσης Google', 'error');
                 }
                 return;
             }
@@ -2424,14 +2546,15 @@ function initGoogleAuth() {
             hideReconnectBanner();
             updateGoogleUI(true);
             scheduleRefresh(response.expires_in);
-            if (isFirst) setTimeout(() => showSyncChoiceDialog(), 1000);
-        }
+            if (isFirst && manualLogin) setTimeout(() => showSyncChoiceDialog(), 1000);
+            manualLogin = false;
+        },
+        error_callback: () => { manualLogin = false; }
     });
-
-    if (wasConnected) { updateGoogleUI(true); silentRefresh(); }
+    return true;
 }
 
-function silentRefresh() { if (tokenClient) tokenClient.requestAccessToken({ prompt: '' }); }
+function silentRefresh() { if (tokenClient && googleAccessToken) tokenClient.requestAccessToken({ prompt: '' }); }
 
 function scheduleRefresh(expiresIn) {
     clearTimeout(tokenRefreshTimer);
@@ -2444,8 +2567,10 @@ function handleGoogleAuth() {
 }
 
 function startLogin() {
-    if (!tokenClient) return;
-    tokenClient.requestAccessToken({ prompt: 'consent', login_hint: localStorage.getItem('spitiGoogleEmail') || '' });
+    if (!initGoogleAuth() || !tokenClient) { showSyncToast('⚠️ Δεν φορτώθηκε η υπηρεσία Google (έλεγξε το internet)', 'error'); return; }
+    const hint = localStorage.getItem('spitiGoogleEmail') || '';
+    manualLogin = true; loginRetried = false;
+    tokenClient.requestAccessToken({ prompt: hint ? '' : 'consent', login_hint: hint });
 }
 
 function updateGoogleUI(connected) {
