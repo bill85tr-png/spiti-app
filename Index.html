@@ -56,6 +56,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
 .content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .page{display:none;padding:14px}
 .page.on{display:block}
+.page.slideL{animation:slideL .22s ease-out}
+.page.slideR{animation:slideR .22s ease-out}
+@keyframes slideL{from{opacity:.3;transform:translateX(40px)}to{opacity:1;transform:none}}
+@keyframes slideR{from{opacity:.3;transform:translateX(-40px)}to{opacity:1;transform:none}}
 
 /* ── CARDS ── */
 .card{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--r);padding:14px;margin-bottom:10px}
@@ -857,6 +861,39 @@ function toggleFabMenu(force) {
   document.getElementById('fabBack').classList.toggle('on', on);
   document.getElementById('fab-main').classList.toggle('open', on);
 }
+// ── Swipe ανάμεσα στις καρτέλες ──
+const TAB_ORDER = ['dashboard','timeline','daneiaPage','ensimaPage','future'];
+(function initSwipe() {
+  let x0=0, y0=0, t0=0, ok=false;
+  const blocked = el => {
+    for (let n=el; n && n!==document.body; n=n.parentElement) {
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(n.tagName) || n.classList.contains('nav')) return true;
+      if (n.scrollWidth > n.clientWidth + 4 && /(auto|scroll)/.test(getComputedStyle(n).overflowX)) return true;
+    }
+    return false;
+  };
+  document.addEventListener('touchstart', e => {
+    if (e.touches.length!==1 || document.querySelector('.overlay.on') || document.getElementById('fabMenu').classList.contains('on')) { ok=false; return; }
+    ok = !blocked(e.target);
+    x0=e.touches[0].clientX; y0=e.touches[0].clientY; t0=Date.now();
+  }, {passive:true});
+  document.addEventListener('touchend', e => {
+    if (!ok) return; ok=false;
+    const dx=e.changedTouches[0].clientX-x0, dy=e.changedTouches[0].clientY-y0;
+    if (Math.abs(dx)<70 || Math.abs(dx)<Math.abs(dy)*1.8 || Date.now()-t0>700) return;
+    const cur = TAB_ORDER.findIndex(id => document.getElementById(id).classList.contains('on'));
+    const next = cur + (dx<0 ? 1 : -1);
+    if (cur<0 || next<0 || next>=TAB_ORDER.length) return;
+    showPage(TAB_ORDER[next]);
+    const pg = document.getElementById(TAB_ORDER[next]);
+    pg.classList.add(dx<0?'slideL':'slideR');
+    setTimeout(()=>pg.classList.remove('slideL','slideR'), 260);
+    const tab = document.querySelectorAll('.nav-tab')[next];
+    if (tab && tab.scrollIntoView) tab.scrollIntoView({inline:'center', block:'nearest', behavior:'smooth'});
+    window.scrollTo(0,0);
+  }, {passive:true});
+})();
+
 function fabPick(fn) { toggleFabMenu(false); window[fn](); }
 
 function showPage(id) {
