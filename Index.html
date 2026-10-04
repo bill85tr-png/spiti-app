@@ -389,24 +389,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
     <input type="file" id="json-import-input" accept=".json" style="display:none" onchange="handleJSONImport(event)">
   </div>
   <div class="card">
-    <div onclick="toggleCapitalCard()" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer">
-      <div>
-        <div class="card-hdr" style="margin-bottom:0">Καθαρά Κεφάλαια — Βάση</div>
-        <div id="capital-base-preview" style="font-size:13px;font-family:'Syne',sans-serif;font-weight:700;color:var(--green);margin-top:2px">—</div>
-      </div>
-      <span id="capital-card-arrow" style="font-size:18px;color:var(--muted);transition:.2s">▶</span>
-    </div>
-    <div id="capital-card-body" style="display:none;margin-top:12px;padding-top:10px;border-top:1px solid var(--bdr)">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Ίδια κεφάλαια επενδυμένα μέχρι 17/03/2026.</div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <input type="number" id="capital-base-input" min="0" step="0.01" placeholder="0.00"
-          style="flex:1;background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r-sm);padding:8px 10px;font-size:15px;font-family:'Syne',sans-serif;font-weight:700;color:var(--green);text-align:right;outline:none">
-        <span style="font-size:13px;color:var(--muted)">€</span>
-        <button onclick="saveCapitalBase()" class="btn btn-primary" style="padding:8px 14px;font-size:12px">💾</button>
-      </div>
-    </div>
-  </div>
-  <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div><div class="set-lbl">🏷 Κατηγορίες</div><div class="set-sub" id="cat-count-sub">—</div></div>
       <button class="btn btn-secondary" onclick="openCatListModal()" style="padding:8px 14px;font-size:12px">Διαχείριση →</button>
@@ -930,13 +912,8 @@ function renderDashboard() {
   const totalApproved = DB.loanSrc.reduce((s,x)=>s+(+x.approved||0),0);
   const loanRem = totalApproved - loanOut;
   const futTotal = DB.fut.filter(f=>f.status!=='Ολοκληρώθηκε').reduce((s,f)=>s+(+f.cost||0),0);
-  // Entries from 17/03 with toggle OFF → own capital
-  const ownFromNew = DB.tl.filter(e=>e.fromLoan!==true && (e.date||'')>=TL_CUTOFF).reduce((s,e)=>s+(+e.cost||0),0);
-  // Entries from 17/03 with toggle ON that exceed the unused loan pool → overflow is own capital
-  const totalUnusedPool = DB.dan.filter(e=>e.type==='Εκταμίευση'&&e.unused===true).reduce((s,e)=>s+(+e.amount||0),0);
-  const totalLoanUsed = DB.tl.filter(e=>e.fromLoan===true && (e.date||'')>=TL_CUTOFF).reduce((s,e)=>s+(+e.cost||0),0);
-  const loanOverflow = Math.max(0, totalLoanUsed - totalUnusedPool);
-  const ownCapital = capitalBase + ownFromNew + loanOverflow;
+  // Ίδια κεφάλαια = όλες οι εγγραφές που ΔΕΝ είναι «Από Δάνειο»
+  const ownCapital = DB.tl.filter(e=>e.fromLoan!==true).reduce((s,e)=>s+(+e.cost||0),0);
 
   document.getElementById('d-total').textContent = fmt(total);
   document.getElementById('d-count').textContent = DB.tl.length;
@@ -981,28 +958,7 @@ function renderDashboard() {
 //  TIMELINE
 // ═══════════════════════════════════════════
 // ── Constants ──────────────────────────────
-const TL_CUTOFF = '2026-03-17';
-let capitalBase = parseFloat(localStorage.getItem('spiti_capitalbase')||'66128.73') || 66128.73;
-
-// ── Capital Base ────────────────────────────
-function toggleCapitalCard() {
-  const body  = document.getElementById('capital-card-body');
-  const arrow = document.getElementById('capital-card-arrow');
-  const open  = body.style.display === 'none';
-  body.style.display  = open ? 'block' : 'none';
-  arrow.style.transform = open ? 'rotate(90deg)' : 'rotate(0deg)';
-}
-
-function saveCapitalBase() {
-  const val = parseFloat(document.getElementById('capital-base-input').value);
-  if (isNaN(val)||val<0) { toast('⚠️ Μη έγκυρο ποσό'); return; }
-  capitalBase = val;
-  localStorage.setItem('spiti_capitalbase', capitalBase);
-  const prev = document.getElementById('capital-base-preview');
-  if (prev) prev.textContent = fmt(capitalBase);
-  renderDashboard();
-  toast('✅ Αποθηκεύτηκε!');
-}
+localStorage.removeItem('spiti_capitalbase');
 
 // ── Loan Toggle ─────────────────────────────
 let tlIsLoan = false;
@@ -1048,8 +1004,7 @@ function updateLoanAvail() {
 function showTLLoanRow(dateVal) {
   const row = document.getElementById('tl-loan-row');
   if (!row) return;
-  row.style.display = dateVal >= TL_CUTOFF ? 'flex' : 'none';
-  if (dateVal < TL_CUTOFF) setTLLoanToggle(false);
+  row.style.display = 'flex';
   updateLoanAvail();
 }
 
@@ -1183,7 +1138,7 @@ function renderTimeline() {
       </div>
       <div class="row-right">
         <div class="row-amt" style="color:${catColor(e.cat)}">${fmt(+e.cost)}</div>
-        ${e.fromLoan===true&&(e.date||'')>=TL_CUTOFF?'<span style="font-size:9px;padding:1px 6px;border-radius:99px;background:rgba(58,111,209,.2);color:var(--blue-l);border:1px solid var(--blue)">🏦</span>':''}
+        ${e.fromLoan===true?'<span style="font-size:9px;padding:1px 6px;border-radius:99px;background:rgba(58,111,209,.2);color:var(--blue-l);border:1px solid var(--blue)">🏦</span>':''}
         <div class="row-actions">
           <div class="btn-icon" onclick="editTL(${e.id})" title="Επεξεργασία">✏️</div>
         </div>
@@ -1231,7 +1186,7 @@ function saveTL() {
   const date = document.getElementById('tl-date').value;
   const cat = document.getElementById('tl-cat').value;
   const note = document.getElementById('tl-note').value.trim();
-  const fromLoan = date >= TL_CUTOFF ? tlIsLoan : false;
+  const fromLoan = tlIsLoan;
   if (!desc) { toast('⚠️ Συμπλήρωσε Περιγραφή'); return; }
   if (isNaN(cost)||cost<=0) { toast('⚠️ Εισαγωγή έγκυρου ποσού'); return; }
   pushUndo();
@@ -1269,15 +1224,14 @@ function deleteTL() {
 let unusedLoan = parseFloat(localStorage.getItem('spiti_unusedloan')||'0') || 0;
 
 function recalcUnusedLoan() {
-  // Sum of all Εκταμίευση with unused=true
-  const totalUnused = DB.dan
-    .filter(e => e.type==='Εκταμίευση' && e.unused===true)
+  // Αδιάθετο δάνειο = σύνολο εκταμιεύσεων − εγγραφές Timeline «Από Δάνειο»
+  const totalDisbursed = DB.dan
+    .filter(e => e.type==='Εκταμίευση')
     .reduce((s,e)=>s+(+e.amount||0), 0);
-  // Subtract Timeline entries with fromLoan=true
   const usedFromLoan = DB.tl
     .filter(e => e.fromLoan===true)
     .reduce((s,e)=>s+(+e.cost||0), 0);
-  unusedLoan = Math.max(0, totalUnused - usedFromLoan);
+  unusedLoan = Math.max(0, totalDisbursed - usedFromLoan);
   localStorage.setItem('spiti_unusedloan', unusedLoan);
   const uEl = document.getElementById('unused-loan-input');
   if (uEl) uEl.value = unusedLoan ? unusedLoan.toFixed(2) : '';
@@ -1724,10 +1678,6 @@ function openSrcListModal() { renderSettingsLists(); document.getElementById('sr
 
 function renderSettings() {
   refreshUndoButtons();
-  const cb = document.getElementById('capital-base-input');
-  if (cb) cb.value = capitalBase.toFixed(2);
-  const prev = document.getElementById('capital-base-preview');
-  if (prev) prev.textContent = fmt(capitalBase);
   const cc = document.getElementById('cat-count-sub');
   if (cc) cc.textContent = DB.cats.length + ' κατηγορίες';
   const sc = document.getElementById('src-count-sub');
@@ -1979,10 +1929,8 @@ function reportData() {
   const ekt = DB.dan.filter(e=>e.type==='Εκταμίευση');
   const loanOut = sum(ekt,e=>e.amount);
   const approved = sum(DB.loanSrc,s=>s.approved);
-  const pool = sum(ekt.filter(e=>e.unused===true),e=>e.amount);
-  const used = sum(DB.tl.filter(e=>e.fromLoan===true&&(e.date||'')>=TL_CUTOFF),e=>e.cost);
-  const ownNew = sum(DB.tl.filter(e=>e.fromLoan!==true&&(e.date||'')>=TL_CUTOFF),e=>e.cost);
-  const own = capitalBase + ownNew + Math.max(0,used-pool);
+  const used = sum(DB.tl.filter(e=>e.fromLoan===true),e=>e.cost);
+  const own = total - used;
   const cats = {};
   DB.tl.forEach(e=>{ const c=e.cat||'—'; cats[c]=cats[c]||{amt:0,n:0}; cats[c].amt+=+e.cost||0; cats[c].n++; });
   const catRows = Object.entries(cats).sort((a,b)=>b[1].amt-a[1].amt)
@@ -1995,7 +1943,7 @@ function reportData() {
   const futOpen = DB.fut.filter(f=>f.status!=='Ολοκληρώθηκε');
   const ens = DB.tl.filter(e=>/ενσημ|ένσημ/i.test(e.desc||'')).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   return { total, loanOut, approved, loanRem:approved-loanOut, loanExp:danRealExp(), held:danHeldDeposit(),
-           own, unusedPool:Math.max(0,pool-used), capitalBase, futTotal:sum(futOpen,f=>f.cost), catRows, srcRows, ens };
+           own, unusedPool:Math.max(0,loanOut-used), futTotal:sum(futOpen,f=>f.cost), catRows, srcRows, ens };
 }
 const refundLbl = e => e.refund==='pending'?'Εγγύηση — θα επιστραφεί':(e.refund==='done'?'Εγγύηση — επιστράφηκε':'');
 
@@ -2500,7 +2448,6 @@ function confirmReset() {
   showConfirm('⚠️ Επαναφορά Δεδομένων','Αυτή η ενέργεια θα διαγράψει ΟΛΑ τα δεδομένα και θα επαναφέρει τα αρχικά. Είσαι σίγουρος;',()=>{
     localStorage.clear();
     unusedLoan = 0;
-    capitalBase = 66128.73;
     DB = {
       tl:[...DEFAULT_TL], dan:[...DEFAULT_DAN],
       fut:[...DEFAULT_FUT], ens:[...DEFAULT_ENS], cats:[...DEFAULT_CATS],
@@ -2714,7 +2661,7 @@ async function syncToDrive() {
     if (!googleAccessToken || isSyncing) return;
     isSyncing = true;
     showSyncToast('☁️ Αποθήκευση στο Drive...', 'info');
-    const data = JSON.stringify({ DB, capitalBase, exportDate: new Date().toISOString(), version: '3.4' });
+    const data = JSON.stringify({ DB, exportDate: new Date().toISOString(), version: '3.4' });
     try {
         // Πάντα ψάχνουμε πρώτα αν υπάρχει αρχείο
         const foundId = await findFile();
@@ -2745,7 +2692,6 @@ async function syncFromDrive() {
         const data = JSON.parse(content);
         if (data.DB) {
             Object.assign(DB, data.DB);
-            if (data.capitalBase) { capitalBase = data.capitalBase; localStorage.setItem('spiti_capitalbase', capitalBase); }
             saveAll(false);
             refreshAll();
             showSyncToast('✅ Δεδομένα φορτώθηκαν από Drive!', 'success');
