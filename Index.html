@@ -381,8 +381,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
       <button class="btn btn-blue" onclick="exportXLSX()" id="btn-xlsx" style="padding:8px 14px;font-size:12px">Export</button>
     </div>
     <div class="set-row">
-      <div><div class="set-lbl">📄 Εξαγωγή PDF</div><div class="set-sub">Κατεβάζει πλήρη αναφορά σε αρχείο PDF</div></div>
+      <div><div class="set-lbl">📄 Εξαγωγή PDF</div><div class="set-sub">Πλήρης αναφορά με γραφήματα, περιεχόμενα και εκτίμηση τελικού κόστους</div></div>
       <button class="btn btn-orange" onclick="exportPDF()" style="padding:8px 14px;font-size:12px">Export</button>
+    </div>
+    <div class="set-row">
+      <div><div class="set-lbl">🏦 Αναφορά Δανείων (PDF)</div><div class="set-sub">Σύντομη αναφορά μόνο για δάνεια — για τράπεζα ή λογιστή</div></div>
+      <button class="btn btn-orange" onclick="exportLoansPDF()" style="padding:8px 14px;font-size:12px">Export</button>
     </div>
     <div class="set-row">
       <div><div class="set-lbl">🗂️ Εξαγωγή JSON</div><div class="set-sub">Αντίγραφο ασφαλείας όλων των δεδομένων</div></div>
@@ -1306,13 +1310,17 @@ function renderDaneiaPage() {
 
   // Loan TL
   const sorted = [...DB.dan].sort((a,b)=>(b.date||'0').localeCompare(a.date||'0'));
+  const usage = loanUsage();
   document.getElementById('loan-tl-list').innerHTML = sorted.map(e=>{
     const isEkt = e.type==='Εκταμίευση';
+    const uS = isEkt && usage[e.id] ? usage[e.id].status : '';
+    const uTxt = uS==='unused' ? '💰 Αχρησιμοποίητο' : (uS==='used' ? '✅ Χρησιμοποιήθηκε' : (uS==='partial' ? '🔄 Χρησιμοποιήθηκε '+fmt(usage[e.id].used)+' από '+fmt(usage[e.id].amount)+' · έμειναν '+fmt(usage[e.id].left) : ''));
     return `<div class="row">
       <div class="dtl-type ${isEkt?'ekt':'exo'}">${isEkt?'↑ Εκταμ.':'↓ Έξοδο'}</div>
       <div class="row-body">
         <div class="row-title">${e.desc}</div>
         <div class="row-sub"><span>${fmtDate(e.date)}</span>${e.source&&e.source!=='—'?`<span>${e.source}</span>`:''}</div>
+        ${uTxt?`<div class="row-note">${uTxt}</div>`:''}
         ${e.refund==='pending'?`<div class="row-note">🔁 Εγγύηση — επιστρέφεται όταν αποπληρωθεί το δάνειο</div>`:''}
         ${e.refund==='done'?`<div class="row-note">✅ Επιστράφηκε</div>`:''}
         ${e.note?`<div class="row-note">📌 ${e.note}</div>`:''}
@@ -1368,7 +1376,7 @@ function danTypeChange() {
   const t = document.getElementById('dan-type').value;
   document.getElementById('dan-src-group').style.display = t==='Εκταμίευση' ? 'block' : 'none';
   const row = document.getElementById('dan-unused-row');
-  if (row) row.style.display = t==='Εκταμίευση' ? 'flex' : 'none';
+  if (row) row.style.display = 'none'; // η κατάσταση «Αχρησιμοποίητο» υπολογίζεται πλέον αυτόματα
   const rg = document.getElementById('dan-refund-group');
   if (rg) rg.style.display = t==='Έξοδα Δανείου' ? 'block' : 'none';
 }
@@ -1404,7 +1412,7 @@ function saveDan() {
   const note = document.getElementById('dan-note').value.trim();
   if (!desc) { toast('⚠️ Συμπλήρωσε Περιγραφή'); return; }
   if (isNaN(amount)||amount<=0) { toast('⚠️ Εισαγωγή έγκυρου ποσού'); return; }
-  const unused = type==='Εκταμίευση' ? danIsUnused : false;
+  const unused = false; // παλιό χειροκίνητο πεδίο — δεν χρησιμοποιείται πια
   const refund = type==='Έξοδα Δανείου' ? document.getElementById('dan-refund').value : '';
   pushUndo();
   const editId = +document.getElementById('dan-edit-id').value;
@@ -1855,68 +1863,349 @@ function escCSV(v) {
 //  JSON EXPORT
 // ═══════════════════════════════════════════
 
-function buildPdfDoc() {
-  const R = reportData();
-  const GRM = ['','Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος','Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος'];
-  const GREEN='#2d5a1b', H = t => ({text:t,bold:true,color:'#fff',fillColor:'#3a7d1e',fontSize:8});
-  const HR = t => ({...H(t),alignment:'right'});
-  const R_ = t => ({text:t,alignment:'right'});
-  const sec = t => ({text:t,style:'h2'});
-  const tbl = (widths,head,body,extra={}) => ({table:{headerRows:1,widths,body:[head,...body]},layout:'lightHorizontalLines',margin:[0,0,0,4],...extra});
+// ═══════════════════════════════════════════
+//  PDF — νέα μορφή αναφοράς (γραφήματα, σωρευτικό, περιεχόμενα, εκτίμηση)
+// ═══════════════════════════════════════════
+const PDFC = {green:'#2d5a1b', green2:'#3a7d1e', greenL:'#d9ead0', greenXL:'#eef6ea', total:'#c8e0bb',
+  zebra:'#f5f7f3', loanBg:'#e3f0fb', loanFg:'#1565c0', grey:'#666666', line:'#d3dacd', orange:'#e07b00'};
+const PDF_MONTHS = ['','Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος','Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος'];
+const pdfPct  = p => (p*100).toFixed(1).replace('.',',')+'%';
+const pdfEur0 = n => Math.round(n).toLocaleString('el-GR')+' €';
+const pdfLayout = {
+  hLineWidth: i => i===0 ? 0 : 0.25, vLineWidth: () => 0, hLineColor: () => PDFC.line,
+  paddingLeft: () => 4, paddingRight: () => 4, paddingTop: () => 3, paddingBottom: () => 3
+};
+const pdfH  = (t,right) => ({text:t, bold:true, color:'#fff', fillColor:PDFC.green2, fontSize:8.5, alignment:right?'right':'left'});
+const pdfC  = (t,o) => Object.assign({text:String(t==null?'':t), fontSize:9}, o||{});
+const pdfCR = (t,o) => pdfC(t, Object.assign({alignment:'right'}, o||{}));
+const pdfNote = t => ({text:t||'', fontSize:8, color:'#4a4a4a'});
+const pdfFill = (cell, color) => { if (color) cell.fillColor = color; return cell; };
+const pdfSec  = (text, extra) => Object.assign({text, style:'h2', tocItem:true, headlineLevel:1}, extra||{});
 
-  const kpis = [['Συνολικό κόστος κατασκευής',R.total],['Εκταμιευθέντα δάνεια',R.loanOut],['Υπόλοιπο δανείων',R.loanRem],
-    ['Έξοδα δανείων (πραγματικά)',R.loanExp],['Εγγυήσεις προς επιστροφή',R.held],['Αχρησιμοποίητο δάνειο',R.unusedPool],
-    ['Καθαρά / ίδια κεφάλαια',R.own],['Μελλοντικά έξοδα (εκκρεμή)',R.futTotal]];
-  const kpiBody = kpis.map(k=>[k[0],{text:fmt(k[1]),bold:true,alignment:'right'}]);
+function pdfDateRange() {
+  const ds = DB.tl.map(e=>e.date).filter(Boolean).sort();
+  return ds.length ? fmtDate(ds[0])+' – '+fmtDate(ds[ds.length-1]) : '—';
+}
 
-  const tlSorted = [...DB.tl].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-  const months = {}; tlSorted.forEach(e=>{ const k=e.date?e.date.slice(0,7):'0000-00'; (months[k]=months[k]||[]).push(e); });
-  const tlBody = [];
-  Object.entries(months).forEach(([k,items])=>{
-    const [y,m]=k.split('-'); const tot=items.reduce((s,e)=>s+(+e.cost||0),0);
-    tlBody.push([{text:k==='0000-00'?'—':GRM[+m]+' '+y,colSpan:3,bold:true,color:'#fff',fillColor:GREEN},{},{},{text:fmt(tot),alignment:'right',bold:true,color:'#fff',fillColor:GREEN},{text:'',fillColor:GREEN}]);
-    items.forEach(e=>tlBody.push([e.date?fmtDate(e.date):'—',e.desc||'—',e.cat||'—',R_(fmt(+e.cost||0)),{text:((e.fromLoan===true?'[Από δάνειο] ':'')+(e.note||'')),fontSize:7,color:'#666'}]));
+// ── Αυτόματη κατάσταση χρήσης κάθε εκταμίευσης ───────────────
+// Τα έξοδα «Από δάνειο» θεωρούνται ότι καταναλώνουν τις εκταμιεύσεις με σειρά ημερομηνίας (οι παλαιότερες πρώτα).
+function loanUsage() {
+  const out = {};
+  let spent = DB.tl.filter(e=>e.fromLoan===true).reduce((s,e)=>s+(+e.cost||0),0);
+  const ekt = DB.dan.filter(e=>e.type==='Εκταμίευση')
+    .sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999') || ((a.id||0)-(b.id||0)));
+  ekt.forEach(e=>{
+    const amt = +e.amount||0;
+    const used = Math.max(0, Math.min(amt, spent));
+    spent -= used;
+    const left = amt - used;
+    out[e.id] = {amount:amt, used, left, status: used<0.005 ? 'unused' : (left<0.005 ? 'used' : 'partial')};
   });
-  tlBody.push([{text:'ΣΥΝΟΛΟ',colSpan:3,bold:true,fillColor:'#e8f5e9'},{},{},{text:fmt(R.total),alignment:'right',bold:true,fillColor:'#e8f5e9'},{text:'',fillColor:'#e8f5e9'}]);
+  return out;
+}
+function loanUsageLabel(e, usage) {
+  if (!e || e.type!=='Εκταμίευση') return '';
+  const u = (usage||loanUsage())[e.id];
+  if (!u) return '';
+  if (u.status==='unused') return 'Αχρησιμοποίητο';
+  if (u.status==='used')   return 'Χρησιμοποιήθηκε';
+  return 'Μερικώς χρησιμοποιημένο (έμειναν '+fmt(u.left)+')';
+}
 
-  const dn = [...DB.dan].sort((a,b)=>(a.date||'0').localeCompare(b.date||'0')).map(e=>[
-    e.date?fmtDate(e.date):'—', e.type, (e.source&&e.source!=='—')?e.source:'', e.desc||'', R_(fmt(+e.amount||0)),
-    {text:[refundLbl(e),(e.type==='Εκταμίευση'&&e.unused===true)?'Αχρησιμοποίητο':'',e.note||''].filter(Boolean).join(' · '),fontSize:7,color:'#666'}]);
+// ── Γραφήματα (σχεδιάζονται σε canvas και μπαίνουν στο PDF ως εικόνες) ──
+function pdfNiceMax(v) {
+  if (!(v>0)) return 5;
+  const p = Math.pow(10, Math.floor(Math.log10(v/5)));
+  for (const m of [1,2,2.5,5,10]) if (m*p*5 >= v) return m*p*5;
+  return 10*p*5;
+}
+function pdfCanvas(wPt, hPt) {
+  const S = 3, cv = document.createElement('canvas');
+  cv.width = Math.round(wPt*S); cv.height = Math.round(hPt*S);
+  const g = cv.getContext('2d'); g.scale(S,S);
+  g.fillStyle = '#fff'; g.fillRect(0,0,wPt,hPt);
+  return {cv, g};
+}
+function pdfChartCategories(R) {
+  const rows = R.catRows; if (!rows.length) return null;
+  const rowH = 17, W = 539, H = rows.length*rowH + 8;
+  const {cv,g} = pdfCanvas(W,H);
+  const lblW = 138, maxBar = W - lblW - 118, mx = Math.max(...rows.map(r=>r.amt), 1);
+  g.textBaseline = 'middle';
+  rows.forEach((r,i)=>{
+    const y = 4 + i*rowH + rowH/2, bw = Math.max(1, r.amt/mx*maxBar);
+    g.fillStyle = '#222'; g.font = '8.5px Arial, Helvetica, sans-serif'; g.textAlign = 'right';
+    g.fillText(r.name, lblW-6, y);
+    g.fillStyle = catColor(r.name); g.fillRect(lblW, y-5.5, bw, 11);
+    g.fillStyle = '#222'; g.textAlign = 'left';
+    g.fillText(pdfEur0(r.amt)+'  ('+pdfPct(r.pct)+')', lblW+bw+5, y);
+  });
+  return {img: cv.toDataURL('image/png'), ratio: H/W};
+}
+function pdfChartMonthly() {
+  const by = {};
+  DB.tl.forEach(e=>{ if (e.date) by[e.date.slice(0,7)] = (by[e.date.slice(0,7)]||0) + (+e.cost||0); });
+  const ks = Object.keys(by).sort(); if (!ks.length) return null;
+  let [y,m] = ks[0].split('-').map(Number); const [y1,m1] = ks[ks.length-1].split('-').map(Number);
+  const keys = [];
+  while (y<y1 || (y===y1 && m<=m1)) { keys.push(y+'-'+String(m).padStart(2,'0')); m++; if (m===13) { m=1; y++; } }
+  const vals = keys.map(k=>by[k]||0); let run = 0; const cum = vals.map(v=>(run+=v));
+  const W = 539, H = 190, L = 40, Rm = 46, T = 20, B = 34, pw = W-L-Rm, ph = H-T-B;
+  const {cv,g} = pdfCanvas(W,H);
+  const lmax = pdfNiceMax(Math.max(...vals)), rmax = pdfNiceMax(run);
+  g.font = '7px Arial, Helvetica, sans-serif'; g.textBaseline = 'middle';
+  for (let i=0;i<=5;i++) {
+    const yy = T + ph - ph*i/5;
+    g.strokeStyle = '#e3e6df'; g.lineWidth = 0.5; g.beginPath(); g.moveTo(L,yy); g.lineTo(L+pw,yy); g.stroke();
+    g.fillStyle = '#555'; g.textAlign = 'right'; g.fillText(Math.round(lmax*i/5).toLocaleString('el-GR'), L-4, yy);
+    g.textAlign = 'left'; g.fillText(Math.round(rmax*i/5).toLocaleString('el-GR'), L+pw+4, yy);
+  }
+  const step = pw/keys.length;
+  keys.forEach((k,i)=>{
+    const bh = vals[i]/lmax*ph, x = L + i*step + step*0.15;
+    g.fillStyle = PDFC.green2; g.fillRect(x, T+ph-bh, step*0.7, bh);
+    g.save(); g.translate(L + i*step + step/2 + 2, T+ph+4); g.rotate(-Math.PI/2);
+    g.fillStyle = '#444'; g.textAlign = 'right'; g.fillText(k.slice(5)+'/'+k.slice(2,4), 0, 0); g.restore();
+  });
+  g.strokeStyle = PDFC.orange; g.lineWidth = 1.8; g.beginPath();
+  cum.forEach((c,i)=>{ const x = L + i*step + step/2, yy = T + ph - c/rmax*ph; i ? g.lineTo(x,yy) : g.moveTo(x,yy); });
+  g.stroke();
+  g.fillStyle = PDFC.orange;
+  cum.forEach((c,i)=>{ g.beginPath(); g.arc(L + i*step + step/2, T + ph - c/rmax*ph, 1.8, 0, 6.2832); g.fill(); });
+  g.font = '8px Arial, Helvetica, sans-serif'; g.textAlign = 'left';
+  g.fillStyle = PDFC.green2; g.fillRect(L, 5, 9, 9); g.fillStyle = '#222'; g.fillText('Κόστος μήνα', L+13, 10);
+  g.strokeStyle = PDFC.orange; g.lineWidth = 2; g.beginPath(); g.moveTo(L+90,10); g.lineTo(L+102,10); g.stroke();
+  g.fillStyle = '#222'; g.fillText('Σωρευτικό κόστος', L+106, 10);
+  return {img: cv.toDataURL('image/png'), ratio: H/W};
+}
 
-  const content = [
-    {text:'Κόστος Κατασκευής Σπιτιού',style:'h1'},
-    {text:'Εξαγωγή: '+new Date().toLocaleDateString('el-GR')+'   |   Εγγραφές: '+DB.tl.length,color:'#666',margin:[0,0,0,6]},
-    sec('Σύνοψη'), {table:{widths:['*',120],body:kpiBody},layout:'lightHorizontalLines',margin:[0,0,0,4]},
-    sec('Πηγές Δανεισμού'),
-    tbl(['*',65,65,65,38,50],[H('Πηγή'),HR('Εγκεκριμένο'),HR('Εκταμιευθέν'),HR('Υπόλοιπο'),HR('%'),H('Κατάσταση')],
-      R.srcRows.map(s=>[s.name,R_(fmt(s.approved)),R_(fmt(s.out)),R_(fmt(s.rem)),R_((s.pct*100).toFixed(1)+'%'),s.status])),
-    sec('Κόστος ανά Κατηγορία'),
-    tbl(['*',80,55,50],[H('Κατηγορία'),HR('Κόστος'),HR('% Συνόλου'),HR('Εγγραφές')],
-      R.catRows.map(c=>[c.name,R_(fmt(c.amt)),R_((c.pct*100).toFixed(1)+'%'),R_(String(c.n))])),
-    {text:'Timeline Εξόδων',style:'h2',pageBreak:'before'},
-    tbl([48,'*',85,62,85],[H('Ημερομηνία'),H('Περιγραφή'),H('Κατηγορία'),HR('Κόστος'),H('Σημείωση')],tlBody),
-    sec('Timeline Δανείων'),
-    tbl([46,50,70,'*',58,90],[H('Ημ/νία'),H('Τύπος'),H('Πηγή'),H('Περιγραφή'),HR('Ποσό'),H('Σημειώσεις')],dn),
-    sec('Μελλοντικά Έξοδα'),
-    tbl(['*',100,60,55],[H('Περιγραφή'),H('Κατηγορία'),HR('Κόστος'),H('Κατάσταση')],
-      [...DB.fut.map(f=>[f.desc||'',f.cat||'—',R_(fmt(+f.cost||0)),f.status||'Εκκρεμεί']),
-       [{text:'Σύνολο εκκρεμών',colSpan:2,bold:true,fillColor:'#e8f5e9'},{},{text:fmt(R.futTotal),alignment:'right',bold:true,fillColor:'#e8f5e9'},{text:'',fillColor:'#e8f5e9'}]])
+// ── Κοινά στοιχεία ──────────────────────────
+function pdfBar(pct, w, color) {
+  w = w||64; const p = Math.max(0, Math.min(1, pct));
+  const cv = [{type:'rect', x:0, y:1, w:w, h:8, color:'#e6eadf'}];
+  if (p>0) cv.push({type:'rect', x:0, y:1, w:w*p, h:8, color:color||PDFC.green2});
+  return {columns:[{canvas:cv, width:w+4}, {text:pdfPct(pct), fontSize:8, bold:true, width:'auto'}], columnGap:2};
+}
+function pdfKpiCards(items, cols) {
+  const rows = []; let row = [];
+  items.forEach(([label,value])=>{
+    row.push({stack:[{text:label, fontSize:7.5, color:PDFC.grey}, {text:value, fontSize:13, bold:true, color:PDFC.green, margin:[0,2,0,0]}], fillColor:PDFC.greenXL});
+    if (row.length===cols) { rows.push(row); row = []; }
+  });
+  if (row.length) { while (row.length<cols) row.push({text:''}); rows.push(row); }
+  return {table:{widths:Array(cols).fill('*'), body:rows},
+    layout:{hLineWidth:()=>3, vLineWidth:()=>3, hLineColor:()=>'#fff', vLineColor:()=>'#fff', paddingLeft:()=>8, paddingRight:()=>6, paddingTop:()=>6, paddingBottom:()=>6}};
+}
+function pdfSourcesTable(R) {
+  const body = [[pdfH('Πηγή'), pdfH('Εγκεκριμένο',1), pdfH('Εκταμιευθέν',1), pdfH('Υπόλοιπο',1), pdfH('Αξιοποίηση'), pdfH('Κατάσταση')]];
+  R.srcRows.forEach((s,i)=>{
+    const f = i%2 ? PDFC.zebra : null;
+    body.push([pdfFill(pdfC(s.name),f), pdfFill(pdfCR(fmt(s.approved)),f), pdfFill(pdfCR(fmt(s.out)),f), pdfFill(pdfCR(fmt(s.rem)),f),
+               pdfFill({stack:[pdfBar(s.pct)], margin:[0,1,0,0]},f), pdfFill(pdfC(s.status),f)]);
+  });
+  const ta = R.srcRows.reduce((s,x)=>s+x.approved,0), to = R.srcRows.reduce((s,x)=>s+x.out,0), T = PDFC.total;
+  body.push([pdfFill(pdfC('ΣΥΝΟΛΟ',{bold:true}),T), pdfFill(pdfCR(fmt(ta),{bold:true}),T), pdfFill(pdfCR(fmt(to),{bold:true}),T),
+             pdfFill(pdfCR(fmt(ta-to),{bold:true}),T), pdfFill({stack:[pdfBar(ta?to/ta:0, 64, PDFC.green)], margin:[0,1,0,0]},T), pdfFill(pdfC(''),T)]);
+  return {table:{headerRows:1, dontBreakRows:true, widths:['*',68,68,68,104,52], body}, layout:pdfLayout};
+}
+function pdfCategoryTable(R) {
+  const body = [[pdfH('Κατηγορία'), pdfH('Κόστος',1), pdfH('% Συνόλου',1), pdfH('Εγγραφές',1)]];
+  R.catRows.forEach((c,i)=>{
+    const f = i%2 ? PDFC.zebra : null;
+    body.push([pdfFill({text:[{text:'■  ', color:catColor(c.name)}, {text:c.name}], fontSize:9}, f),
+               pdfFill(pdfCR(fmt(c.amt)),f), pdfFill(pdfCR(pdfPct(c.pct)),f), pdfFill(pdfCR(String(c.n)),f)]);
+  });
+  const T = PDFC.total;
+  body.push([pdfFill(pdfC('ΣΥΝΟΛΟ',{bold:true}),T), pdfFill(pdfCR(fmt(R.total),{bold:true}),T), pdfFill(pdfCR('100,0%',{bold:true}),T),
+             pdfFill(pdfCR(String(DB.tl.length),{bold:true}),T)]);
+  return {table:{headerRows:1, dontBreakRows:true, widths:['*',100,80,70], body}, layout:pdfLayout};
+}
+function pdfEstimate(R) {
+  const est = R.total + R.futTotal, p = est ? R.total/est : 0;
+  return [
+    {columns:[
+      {width:140, stack:[{text:'Κόστος μέχρι σήμερα', fontSize:7.5, color:PDFC.grey}, {text:fmt(R.total), fontSize:13, bold:true, color:PDFC.green}]},
+      {width:16, text:'+', fontSize:13, bold:true, margin:[0,10,0,0]},
+      {width:150, stack:[{text:'Εκκρεμή μελλοντικά έξοδα', fontSize:7.5, color:PDFC.grey}, {text:fmt(R.futTotal), fontSize:13, bold:true, color:PDFC.orange}]},
+      {width:16, text:'=', fontSize:13, bold:true, margin:[0,10,0,0]},
+      {width:'*', stack:[{text:'Εκτιμώμενο τελικό κόστος', fontSize:7.5, color:PDFC.grey}, {text:fmt(est), fontSize:15, bold:true}]}
+    ], margin:[0,0,0,5]},
+    {canvas:[{type:'rect', x:0, y:0, w:539, h:12, color:'#f6d9b0'}, {type:'rect', x:0, y:0, w:539*p, h:12, color:PDFC.green2}]},
+    {columns:[{text:'Έχει δαπανηθεί '+pdfPct(p), fontSize:8, bold:true, color:PDFC.green},
+              {text:'Εκκρεμεί '+pdfPct(1-p), fontSize:8, bold:true, color:'#6b3d00', alignment:'right'}], margin:[0,2,0,2]},
+    {text:'Η εκτίμηση βασίζεται στα εκκρεμή μελλοντικά έξοδα που έχουν καταχωρηθεί και δεν περιλαμβάνει τυχόν απρόβλεπτα.', fontSize:7.5, color:PDFC.grey}
   ];
-  if (R.ens.length) content.push(sec('Ένσημα'),
-    tbl([48,'*',70],[H('Ημ/νία'),H('Περιγραφή'),HR('Κόστος')],R.ens.map(e=>[fmtDate(e.date),e.desc||'',R_(fmt(+e.cost||0))])));
-  return { pageSize:'A4', pageMargins:[28,28,28,34], content,
-    defaultStyle:{fontSize:8.5},
-    styles:{h1:{fontSize:18,bold:true,color:GREEN},h2:{fontSize:12,bold:true,color:GREEN,margin:[0,12,0,4]}},
-    footer:(c,t)=>({text:c+' / '+t,alignment:'center',fontSize:8,color:'#888'}) };
+}
+function pdfTimelineTable(R) {
+  const srt = [...DB.tl].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const months = {}; srt.forEach(e=>{ const k = e.date ? e.date.slice(0,7) : '0000-00'; (months[k] = months[k]||[]).push(e); });
+  const body = [[pdfH(''), pdfH('Ημ/νία'), pdfH('Περιγραφή'), pdfH('Κατηγορία'), pdfH('Κόστος',1), pdfH('Σύνολο μέχρι εδώ',1), pdfH('Σημείωση')]];
+  let cum = 0;
+  Object.entries(months).forEach(([k,items])=>{
+    const mt = items.reduce((s,e)=>s+(+e.cost||0),0), [y,m] = k.split('-');
+    const lab = k==='0000-00' ? '—' : PDF_MONTHS[+m]+' '+y, G = PDFC.greenL;
+    body.push([{text:lab, colSpan:4, bold:true, color:PDFC.green, fontSize:9, fillColor:G}, {}, {}, {},
+               pdfFill(pdfCR(fmt(mt),{bold:true,color:PDFC.green}),G), pdfFill(pdfCR(fmt(cum+mt),{bold:true,color:PDFC.green}),G), {text:'', fillColor:G}]);
+    items.forEach((e,i)=>{
+      const c = +e.cost||0; cum += c;
+      const loan = e.fromLoan===true, f = loan ? PDFC.loanBg : (i%2 ? PDFC.zebra : null);
+      body.push([
+        pdfFill(loan ? {canvas:[{type:'ellipse', x:3, y:5, r1:3, r2:3, color:PDFC.loanFg}]} : {text:''}, f),
+        pdfFill(pdfC(fmtDate(e.date)),f), pdfFill(pdfC(e.desc||'—'),f), pdfFill(pdfC(e.cat||'—'),f),
+        pdfFill(pdfCR(fmt(c)),f), pdfFill(pdfCR(fmt(cum),{color:PDFC.grey}),f), pdfFill(pdfNote(e.note),f)
+      ]);
+    });
+  });
+  const T = PDFC.total;
+  body.push([{text:'ΣΥΝΟΛΟ', colSpan:4, bold:true, fontSize:9, fillColor:T}, {}, {}, {},
+             pdfFill(pdfCR(fmt(R.total),{bold:true}),T), pdfFill(pdfCR(fmt(cum),{bold:true}),T), {text:'', fillColor:T}]);
+  return {table:{headerRows:1, dontBreakRows:true, widths:[12,50,'*',88,60,64,104], body}, layout:pdfLayout};
+}
+function pdfDanTable(items, withType) {
+  const usage = loanUsage();
+  const srt = [...items].sort((a,b)=>(a.date||'0').localeCompare(b.date||'0'));
+  const hdr = withType
+    ? [pdfH('Ημ/νία'), pdfH('Τύπος'), pdfH('Πηγή'), pdfH('Περιγραφή'), pdfH('Ποσό',1), pdfH('Σημειώσεις')]
+    : [pdfH('Ημ/νία'), pdfH('Πηγή'), pdfH('Περιγραφή'), pdfH('Ποσό',1), pdfH('Σημειώσεις')];
+  const body = [hdr];
+  srt.forEach((e,i)=>{
+    const ekt = e.type==='Εκταμίευση';
+    const f = ekt ? PDFC.greenXL : (i%2 ? PDFC.zebra : null);
+    const src = (e.source && e.source!=='—') ? e.source : '';
+    const note = [refundLbl(e), loanUsageLabel(e, usage), e.note||''].filter(Boolean).join(' · ');
+    const cells = withType
+      ? [pdfC(fmtDate(e.date)), pdfC(e.type,{bold:ekt}), pdfC(src), pdfC(e.desc||''), pdfCR(fmt(+e.amount||0)), pdfNote(note)]
+      : [pdfC(fmtDate(e.date)), pdfC(src), pdfC(e.desc||''), pdfCR(fmt(+e.amount||0)), pdfNote(note)];
+    body.push(cells.map(c=>pdfFill(c,f)));
+  });
+  const widths = withType ? [50,64,80,'*',62,116] : [50,100,'*',62,130];
+  return {table:{headerRows:1, dontBreakRows:true, widths, body}, layout:pdfLayout};
+}
+function pdfFutureTable(R) {
+  const body = [[pdfH('Περιγραφή'), pdfH('Κατηγορία'), pdfH('Κόστος',1), pdfH('Κατάσταση')]];
+  DB.fut.forEach((f,i)=>{
+    const z = i%2 ? PDFC.zebra : null;
+    body.push([pdfFill(pdfC(f.desc||''),z), pdfFill(pdfC(f.cat||'—'),z), pdfFill(pdfCR(fmt(+f.cost||0)),z), pdfFill(pdfC(f.status||'Εκκρεμεί'),z)]);
+  });
+  const T = PDFC.total;
+  body.push([{text:'Σύνολο εκκρεμών', colSpan:2, bold:true, fontSize:9, fillColor:T}, {}, pdfFill(pdfCR(fmt(R.futTotal),{bold:true}),T), {text:'', fillColor:T}]);
+  return {table:{headerRows:1, dontBreakRows:true, widths:['*',140,76,62], body}, layout:pdfLayout};
+}
+function pdfBaseDoc(title, headerTitle, range, content) {
+  const secStart = {};
+  return {
+    pageSize:'A4', pageMargins:[28,42,28,40], content,
+    info:{title, author:'Κόστος Σπιτιού'},
+    defaultStyle:{fontSize:9},
+    styles:{
+      h1:{fontSize:22, bold:true, color:PDFC.green},
+      h2:{fontSize:13, bold:true, color:PDFC.green, margin:[0,12,0,5]}
+    },
+    pageBreakBefore:(node)=>{
+      if (node.headlineLevel===1 && node.startPosition && typeof node.text==='string') secStart[node.text] = node.startPosition.pageNumber;
+      return false;
+    },
+    header:(cp)=>{
+      if (cp===1) return null;
+      let sec = '', best = 0;
+      Object.keys(secStart).forEach(t=>{ if (secStart[t]<=cp && secStart[t]>=best) { best = secStart[t]; sec = t; } });
+      return {margin:[28,14,28,0], stack:[
+        {columns:[{text:headerTitle, bold:true, fontSize:8, color:PDFC.green},
+                  {text:range+(sec?'   ·   '+sec:''), fontSize:8, color:PDFC.grey, alignment:'right'}]},
+        {canvas:[{type:'line', x1:0, y1:3, x2:539, y2:3, lineWidth:0.6, lineColor:PDFC.line}]}
+      ]};
+    },
+    footer:(cp,pc)=>({margin:[28,0,28,0], fontSize:8, color:PDFC.grey, columns:[
+      {text:'Εξαγωγή: '+new Date().toLocaleDateString('el-GR'), width:'*'},
+      {text:'Σελίδα '+cp+' / '+pc, alignment:'center', width:'*'},
+      {text:'', width:'*'}]})
+  };
+}
+
+// ── Πλήρης αναφορά ──────────────────────────
+function buildPdfDoc() {
+  const R = reportData(), range = pdfDateRange();
+  const usedN = DB.tl.filter(e=>e.fromLoan===true).length;
+  const content = [
+    {text:'Κόστος Κατασκευής Σπιτιού', style:'h1'},
+    {text:'Εξαγωγή: '+new Date().toLocaleDateString('el-GR')+'   |   Περίοδος: '+range+'   |   Εγγραφές: '+DB.tl.length, color:PDFC.grey, margin:[0,2,0,10]},
+    {toc:{title:{text:'Περιεχόμενα', bold:true, fontSize:11, color:PDFC.green, margin:[0,0,0,3]}, textStyle:{color:PDFC.green}}},
+    pdfSec('Σύνοψη και εκτίμηση τελικού κόστους'),
+    pdfKpiCards([
+      ['Συνολικό κόστος κατασκευής',fmt(R.total)], ['Εκταμιευθέντα δάνεια',fmt(R.loanOut)],
+      ['Υπόλοιπο δανείων',fmt(R.loanRem)], ['Καθαρά / ίδια κεφάλαια',fmt(R.own)],
+      ['Έξοδα δανείων (πραγματικά)',fmt(R.loanExp)], ['Εγγυήσεις προς επιστροφή',fmt(R.held)],
+      ['Αχρησιμοποίητο δάνειο',fmt(R.unusedPool)], ['Μελλοντικά έξοδα (εκκρεμή)',fmt(R.futTotal)]
+    ], 4),
+    {text:'', margin:[0,6,0,0]},
+    ...pdfEstimate(R),
+    pdfSec('Πηγές Δανεισμού'),
+    pdfSourcesTable(R)
+  ];
+  const cc = pdfChartCategories(R), cm = pdfChartMonthly();
+  content.push(pdfSec('Γραφήματα: κόστος ανά κατηγορία και ανά μήνα', {pageBreak:'before'}));
+  if (cc) content.push({text:'Κόστος ανά κατηγορία', bold:true, margin:[0,0,0,3]}, {image:cc.img, width:539});
+  if (cm) content.push({text:'Κόστος ανά μήνα και σωρευτικό κόστος (€)', bold:true, margin:[0,10,0,3]}, {image:cm.img, width:539});
+  content.push(pdfSec('Κόστος ανά Κατηγορία'), pdfCategoryTable(R));
+  content.push(pdfSec('Timeline Εξόδων', {pageBreak:'before'}),
+    {text:[{text:'●  ', color:PDFC.loanFg}, {text:'Πληρώθηκε από δάνειο (μπλε γραμμή): '+usedN+' εγγραφές, σύνολο '+fmt(DB.tl.filter(e=>e.fromLoan===true).reduce((s,e)=>s+(+e.cost||0),0))+'.   Η στήλη «Σύνολο μέχρι εδώ» δείχνει το σωρευτικό κόστος μετά από κάθε έξοδο.'}],
+      fontSize:8, color:PDFC.grey, margin:[0,0,0,4]},
+    pdfTimelineTable(R));
+  content.push(pdfSec('Timeline Δανείων', {pageBreak:'before'}), pdfDanTable(DB.dan, true),
+    {text:'Εκταμιεύσεις: '+fmt(R.loanOut)+'   ·   Έξοδα δανείων (πραγματικά): '+fmt(R.loanExp)+'   ·   Εγγυήσεις προς επιστροφή: '+fmt(R.held), fontSize:8, color:PDFC.grey, margin:[0,4,0,0]});
+  content.push(pdfSec('Μελλοντικά Έξοδα', {pageBreak:'before'}), pdfFutureTable(R));
+  if (R.ens.length) {
+    const body = [[pdfH('Ημ/νία'), pdfH('Περιγραφή'), pdfH('Κόστος',1)]];
+    R.ens.forEach((e,i)=>{ const z = i%2 ? PDFC.zebra : null; body.push([pdfFill(pdfC(fmtDate(e.date)),z), pdfFill(pdfC(e.desc||''),z), pdfFill(pdfCR(fmt(+e.cost||0)),z)]); });
+    content.push(pdfSec('Ένσημα'), {table:{headerRows:1, dontBreakRows:true, widths:[50,'*',80], body}, layout:pdfLayout});
+  }
+  return pdfBaseDoc('Κόστος Κατασκευής Σπιτιού', 'Κόστος Κατασκευής Σπιτιού', range, content);
+}
+
+// ── Σύντομη αναφορά μόνο για τα δάνεια ──────
+function buildLoansPdfDoc() {
+  const R = reportData();
+  const ds = DB.dan.map(e=>e.date).filter(Boolean).sort();
+  const range = ds.length ? fmtDate(ds[0])+' – '+fmtDate(ds[ds.length-1]) : '—';
+  const ekt = DB.dan.filter(e=>e.type==='Εκταμίευση'), exo = DB.dan.filter(e=>e.type==='Έξοδα Δανείου');
+  const content = [
+    {text:'Αναφορά Δανείων', style:'h1'},
+    {text:'Κατασκευή σπιτιού   |   Εξαγωγή: '+new Date().toLocaleDateString('el-GR'), color:PDFC.grey, margin:[0,2,0,6]},
+    pdfSec('Σύνοψη δανεισμού'),
+    pdfKpiCards([
+      ['Εγκεκριμένα δάνεια',fmt(R.approved)], ['Εκταμιευθέντα',fmt(R.loanOut)], ['Υπόλοιπο προς εκταμίευση',fmt(R.loanRem)],
+      ['Έξοδα δανείων (πραγματικά)',fmt(R.loanExp)], ['Εγγυήσεις προς επιστροφή',fmt(R.held)], ['Αχρησιμοποίητο δάνειο',fmt(R.unusedPool)]
+    ], 3),
+    pdfSec('Πηγές Δανεισμού'), pdfSourcesTable(R),
+    pdfSec('Εκταμιεύσεις'), pdfDanTable(ekt, false),
+    {text:'Σύνολο εκταμιεύσεων: '+fmt(R.loanOut), fontSize:8, color:PDFC.grey, margin:[0,3,0,0]},
+    pdfSec('Έξοδα Δανείων', {pageBreak:'before'}), pdfDanTable(exo, false),
+    {text:'Σύνολο εξόδων δανείων (όλα): '+fmt(exo.reduce((s,e)=>s+(+e.amount||0),0))+'   ·   εκ των οποίων εγγυήσεις προς επιστροφή: '+fmt(R.held), fontSize:8, color:PDFC.grey, margin:[0,3,0,0]}
+  ];
+  // Οι «τίτλοι ενοτήτων» δεν χρειάζονται περιεχόμενα εδώ
+  content.forEach(n=>{ if (n && n.tocItem) delete n.tocItem; });
+  return pdfBaseDoc('Αναφορά Δανείων', 'Αναφορά Δανείων — Κατασκευή Σπιτιού', range, content);
+}
+
+async function pdfEnsureLib() {
+  const load = src => new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('Δεν φορτώθηκε η βιβλιοθήκη PDF (χρειάζεται internet)')); document.head.appendChild(s); });
+  if (!window.pdfMake) await load('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js');
+  if (!window.pdfMake.vfs || !window.pdfMake.vfs['Roboto-Regular.ttf']) await load('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js');
 }
 
 async function exportPDF() {
   try {
-    const load = src => new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('Δεν φορτώθηκε η βιβλιοθήκη PDF (χρειάζεται internet)')); document.head.appendChild(s); });
-    if (!window.pdfMake) await load('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js');
-    if (!window.pdfMake.vfs || !window.pdfMake.vfs['Roboto-Regular.ttf']) await load('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js');
+    await pdfEnsureLib();
     pdfMake.createPdf(buildPdfDoc()).download('Κόστος_Σπιτιού_' + new Date().toISOString().split('T')[0] + '.pdf');
     toast('📄 PDF εξήχθη!');
+  } catch(e) { toast('❌ Σφάλμα PDF: ' + e.message); console.error(e); }
+}
+
+async function exportLoansPDF() {
+  try {
+    await pdfEnsureLib();
+    pdfMake.createPdf(buildLoansPdfDoc()).download('Αναφορά_Δανείων_' + new Date().toISOString().split('T')[0] + '.pdf');
+    toast('📄 Αναφορά Δανείων εξήχθη!');
   } catch(e) { toast('❌ Σφάλμα PDF: ' + e.message); console.error(e); }
 }
 
@@ -2298,7 +2587,7 @@ function buildDanRows(entries, ss) {
     if (ds) cells.push(`<c r="E${r}" s="${s.E}"><v>${ds}</v></c>`);
     else     cells.push(`<c r="E${r}" s="${s.E}" />`);
 
-    const note = ((e.refund==='pending'?'[Εγγύηση - θα επιστραφεί] ':e.refund==='done'?'[Εγγύηση - επιστράφηκε] ':'')+(e.type==='Εκταμίευση'&&e.unused===true?'[Αχρησιμοποίητο] ':'')+(e.note||'')).trim();
+    const note = ((e.refund==='pending'?'[Εγγύηση - θα επιστραφεί] ':e.refund==='done'?'[Εγγύηση - επιστράφηκε] ':'')+(e.type==='Εκταμίευση'&&loanUsageLabel(e)?'['+loanUsageLabel(e)+'] ':'')+(e.note||'')).trim();
     if (note) {
       const fi = ssIndex(ss, note);
       cells.push(`<c r="F${r}" s="${s.F}" t="s"><v>${fi}</v></c>`);
