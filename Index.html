@@ -283,6 +283,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
       <input type="date" id="tl-date-to" oninput="renderTimeline()"
         style="flex:1;min-width:0;background:var(--sur3);border:1px solid var(--bdr);border-radius:var(--r-xs);padding:6px 8px;font-size:12px;color:var(--txt);font-family:'DM Sans',sans-serif;outline:none">
     </div>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.8px">Πηγή χρηματοδότησης</div>
+    <div id="tl-src-chips" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px"></div>
     <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.8px">Κατηγορίες</div>
     <div id="tl-cat-chips" style="display:flex;gap:5px;flex-wrap:wrap"></div>
     <div style="margin-top:10px;text-align:right">
@@ -1010,7 +1012,22 @@ function showTLLoanRow(dateVal) {
 
 // ── Timeline Filter ─────────────────────────
 let tlCatFilter = new Set();
+let tlSrcFilter = 'all'; // 'all' | 'loan' | 'own'
 let tlSort = 'date-desc';
+
+function buildTLSrcChips() {
+  const wrap = document.getElementById('tl-src-chips');
+  if (!wrap) return;
+  const opts = [['all','Όλα'],['loan','🏦 Από δάνειο'],['own','💰 Δικά μου κεφάλαια']];
+  wrap.innerHTML = opts.map(([k,l]) =>
+    `<div class="chip${tlSrcFilter===k?' on':''}" onclick="setTLSrcFilter('${k}')">${l}</div>`).join('');
+}
+
+function setTLSrcFilter(v) {
+  tlSrcFilter = v;
+  buildTLSrcChips();
+  renderTimeline();
+}
 
 function buildTLCatFilter() {}
 function setTLFilterFromSelect() {}
@@ -1021,7 +1038,7 @@ function toggleTLFilterPanel() {
   const open  = panel.style.display === 'none';
   panel.style.display = open ? 'block' : 'none';
   btn.classList.toggle('on', open);
-  if (open) buildTLCatChips();
+  if (open) { buildTLSrcChips(); buildTLCatChips(); }
 }
 
 function buildTLCatChips() {
@@ -1041,6 +1058,8 @@ function toggleTLCat(name, el) {
 
 function clearTLFilters() {
   tlCatFilter.clear();
+  tlSrcFilter = 'all';
+  buildTLSrcChips();
   document.getElementById('tl-date-from').value = '';
   document.getElementById('tl-date-to').value = '';
   buildTLCatChips();
@@ -1061,6 +1080,10 @@ function buildActivePills(q, dateFrom, dateTo) {
   if (dateFrom||dateTo) {
     const label=(dateFrom?fmtDateShort(dateFrom):'…')+' → '+(dateTo?fmtDateShort(dateTo):'…');
     pills.push(`<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:99px;font-size:11px;background:var(--sur3);border:1px solid var(--blue);color:var(--blue-l)">📅 ${label} <span onclick="document.getElementById('tl-date-from').value='';document.getElementById('tl-date-to').value='';renderTimeline()" style="cursor:pointer;opacity:.7">✕</span></span>`);
+  }
+  if (tlSrcFilter !== 'all') {
+    const lbl = tlSrcFilter==='loan' ? '🏦 Από δάνειο' : '💰 Δικά μου κεφάλαια';
+    pills.push(`<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:99px;font-size:11px;background:var(--sur3);border:1px solid var(--green);color:var(--green)">${lbl} <span onclick="setTLSrcFilter('all')" style="cursor:pointer;opacity:.7">✕</span></span>`);
   }
   tlCatFilter.forEach(cat=>{
     pills.push(`<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:99px;font-size:11px;background:var(--sur3);border:1px solid var(--orange);color:var(--orange-l)">🏷 ${cat} <span onclick="tlCatFilter.delete('${cat}');buildTLCatChips();renderTimeline()" style="cursor:pointer;opacity:.7">✕</span></span>`);
@@ -1084,6 +1107,8 @@ function renderTimeline() {
   buildActivePills(q, dateFrom, dateTo);
   let list = [...DB.tl];
   if (tlCatFilter.size>0) list = list.filter(e=>tlCatFilter.has(e.cat));
+  if (tlSrcFilter==='loan') list = list.filter(e=>e.fromLoan===true);
+  else if (tlSrcFilter==='own') list = list.filter(e=>e.fromLoan!==true);
   if (dateFrom) list = list.filter(e=>(e.date||'')>=dateFrom);
   if (dateTo)   list = list.filter(e=>(e.date||'')<=dateTo);
   if (q) list = list.filter(e=>
