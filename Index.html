@@ -251,7 +251,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
   </div>
   <div id="d-loan-held" style="display:none;font-size:12px;color:var(--muted);margin:-4px 4px 10px"></div>
   <div class="card" id="d-nbg-card">
-    <div class="card-hdr">NBG 1ο Δάνειο</div>
+    <div class="card-hdr" id="d-nbg-title">Δάνειο</div>
     <div class="prog-wrap">
       <div class="prog-row"><span>Εκταμιευθέν</span><span id="d-nbg-text" style="font-weight:600">—</span></div>
       <div class="prog-track"><div class="prog-fill" id="d-nbg-bar" style="background:var(--blue);width:0%"></div></div>
@@ -304,6 +304,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
 <div class="page" id="daneiaPage">
   <div class="card">
     <div class="card-hdr">Πηγές Δανεισμού</div>
+    <div id="loan-add-first" style="display:none;text-align:center;padding:14px 0 10px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Δεν έχει καταχωρηθεί κανένα δάνειο.</div>
+      <button class="btn btn-primary" onclick="openAddLoanSrc()">＋ Προσθήκη δανείου</button>
+    </div>
     <div id="loan-sources"></div>
     <div style="border-top:1px solid var(--bdr);margin-top:6px;padding-top:12px">
       <div style="display:flex;justify-content:space-between">
@@ -427,7 +431,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
     <input type="hidden" id="tl-edit-id">
     <div class="form-group">
       <label class="form-label">Περιγραφή *</label>
-      <input class="form-input" id="tl-desc" placeholder="π.χ. Χριστοφής (εργολάβος)">
+      <input class="form-input" id="tl-desc" placeholder="π.χ. Εργολάβος (προκαταβολή)">
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -681,7 +685,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
     <input type="hidden" id="loansrc-edit-idx">
     <div class="form-group">
       <label class="form-label">Όνομα *</label>
-      <input class="form-input" id="loansrc-name" placeholder="π.χ. NBG — 3ο Δάνειο">
+      <input class="form-input" id="loansrc-name" placeholder="π.χ. Τράπεζα — Στεγαστικό">
     </div>
     <div class="form-group">
       <label class="form-label">Εγκεκριμένο Ποσό (€)</label>
@@ -716,9 +720,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
 // ═══════════════════════════════════════════
 //  DATA — default seed data
 // ═══════════════════════════════════════════
-const DEFAULT_CATS = [{"name":"Μπετά / Σκελετός","color":"#8B4513"},{"name":"Χτίσιμο / Τοιχοποιία","color":"#D28839"},{"name":"Αμοιβές Μηχανικών","color":"#2A7B54"},{"name":"Ηλεκτρολογικά","color":"#3170A6"},{"name":"Υδραυλικά","color":"#1A8C8C"},{"name":"Σοβάτισμα / Επιχρίσματα","color":"#CB9F6E"},{"name":"Κουφώματα / Μέταλλα","color":"#5A6A7A"},{"name":"Άδεια / Γραφειοκρατία","color":"#6A3D9A"},{"name":"Δώρο Πατέρα","color":"#C0760A"},{"name":"Διάφορα","color":"#787878"},{"name":"Μάρμαρα","color":"#8d9857"},{"name":"Πλακάκια","color":"#fbff00"},{"name":"Θερμοπρόσοψη","color":"#1a1a1a"}];
+const DEFAULT_CATS = [{"name":"Μπετά / Σκελετός","color":"#8B4513"},{"name":"Χτίσιμο / Τοιχοποιία","color":"#D28839"},{"name":"Αμοιβές Μηχανικών","color":"#2A7B54"},{"name":"Ηλεκτρολογικά","color":"#3170A6"},{"name":"Υδραυλικά","color":"#1A8C8C"},{"name":"Σοβάτισμα / Επιχρίσματα","color":"#CB9F6E"},{"name":"Κουφώματα / Μέταλλα","color":"#5A6A7A"},{"name":"Άδεια / Γραφειοκρατία","color":"#6A3D9A"},{"name":"Διάφορα","color":"#787878"},{"name":"Μάρμαρα","color":"#8d9857"},{"name":"Πλακάκια","color":"#fbff00"},{"name":"Θερμοπρόσοψη","color":"#1a1a1a"},{"name":"Γυψοσανίδες","color":"#888888"}];
 
-const DEFAULT_LOAN_SOURCES = [{"id":"nbg1","name":"NBG — 1ο Δάνειο","approved":100000,"cls":"nbg1"},{"id":"nbg2","name":"NBG — 2ο Δάνειο","approved":25000,"cls":"nbg2"},{"id":"xalips","name":"Δάνειο Χάλυψ","approved":4500,"cls":"xalips"},{"id":"filos","name":"Δάνειο Φίλου","approved":6000,"cls":"filos"}];
+const DEFAULT_LOAN_SOURCES = [];
 
 const DEFAULT_TL = [];
 
@@ -926,9 +930,12 @@ function renderDashboard() {
   const heldEl = document.getElementById('d-loan-held');
   if (heldEl) { const h = danHeldDeposit(); heldEl.style.display = h>0 ? 'block' : 'none'; heldEl.textContent = '🔁 Εγγυήσεις προς επιστροφή: '+fmt(h); }
 
-  // NBG1
-  const nbg1 = DB.loanSrc.find(x=>x.id==='nbg1');
+  // Κάρτα πρώτου δανείου (κρύβεται όταν δεν υπάρχει δάνειο)
+  const nbg1 = DB.loanSrc[0];
+  const nbgCard = document.getElementById('d-nbg-card');
+  if (nbgCard) nbgCard.style.display = nbg1 ? '' : 'none';
   if (nbg1) {
+    document.getElementById('d-nbg-title').textContent = nbg1.name;
     const nbg1Out = DB.dan.filter(e=>e.type==='Εκταμίευση'&&e.source===nbg1.name).reduce((s,e)=>s+(+e.amount||0),0);
     const pct = nbg1.approved>0 ? nbg1Out/nbg1.approved : 0;
     document.getElementById('d-nbg-text').textContent = fmt(nbg1Out)+' / '+fmt(nbg1.approved);
@@ -1263,6 +1270,9 @@ function recalcUnusedLoan() {
 }
 
 function renderDaneiaPage() {
+  // Κουμπί «＋ Προσθήκη δανείου»: φαίνεται μόνο όσο δεν υπάρχει κανένα δάνειο
+  const addFirst = document.getElementById('loan-add-first');
+  if (addFirst) addFirst.style.display = DB.loanSrc.length ? 'none' : 'block';
   // Sources summary
   document.getElementById('loan-sources').innerHTML = DB.loanSrc.map(src=>{
     const out = DB.dan.filter(e=>e.type==='Εκταμίευση'&&e.source===src.name).reduce((s,e)=>s+(+e.amount||0),0);
@@ -1807,10 +1817,11 @@ function saveLoanSrc() {
     const existing = DB.loanSrc[parseInt(idx)];
     DB.loanSrc[parseInt(idx)] = {...existing, name, approved};
   } else {
-    const id = name.toLowerCase().replace(/\s/g,'_').replace(/[^a-z0-9_]/g,'');
-    DB.loanSrc.push({id, name, approved, cls:'nbg1'});
+    const id = 'src_' + Date.now();
+    const clsList = ['nbg1','nbg2','xalips','filos'];
+    DB.loanSrc.push({id, name, approved, cls:clsList[DB.loanSrc.length % clsList.length]});
   }
-  saveAll(false); renderSettings(); renderSettingsLists(); renderDaneiaPage(); closeModal('loansrc-modal');
+  saveAll(false); renderSettings(); renderSettingsLists(); renderDaneiaPage(); renderDashboard(); closeModal('loansrc-modal');
   toast(idx !== '' ? '✅ Πηγή ενημερώθηκε' : '✅ Πηγή προστέθηκε');
 }
 
@@ -2513,9 +2524,60 @@ function toast(msg) {
 }
 
 // ═══════════════════════════════════════════
+//  ΤΟΠΙΚΗ ΑΠΟΘΗΚΕΥΣΗ — εφεδρικό αντίγραφο (IndexedDB) + μόνιμη αποθήκευση
+//  Τα δεδομένα εμφανίζονται πάντα από τον browser, χωρίς σύνδεση Google.
+// ═══════════════════════════════════════════
+const LOCAL_KEYS = ['spiti_tl','spiti_dan','spiti_fut','spiti_ens','spiti_cats','spiti_lsrc'];
+function mirrorOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('spiti_mirror_db', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function mirrorWrite() {
+  try {
+    const db = await mirrorOpen();
+    db.transaction('kv','readwrite').objectStore('kv').put(JSON.stringify({DB, unusedLoan, savedAt: Date.now()}), 'latest');
+  } catch(e) {}
+}
+async function mirrorRead() {
+  try {
+    const db = await mirrorOpen();
+    return await new Promise(res => {
+      const q = db.transaction('kv').objectStore('kv').get('latest');
+      q.onsuccess = () => res(q.result ? JSON.parse(q.result) : null);
+      q.onerror = () => res(null);
+    });
+  } catch(e) { return null; }
+}
+async function initLocalPersistence() {
+  try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch(e) {}
+  // Αν το localStorage έχει χαθεί (καθάρισε ο browser) αλλά υπάρχει το εφεδρικό αντίγραφο → επαναφορά
+  const hasLocal = LOCAL_KEYS.some(k => localStorage.getItem(k) !== null);
+  if (!hasLocal) {
+    const m = await mirrorRead();
+    if (m && m.DB) {
+      Object.assign(DB, m.DB);
+      if (m.unusedLoan !== undefined) { unusedLoan = m.unusedLoan; localStorage.setItem('spiti_unusedloan', unusedLoan); }
+      saveAll(false);
+      refreshAll();
+      toast('♻️ Επαναφέρθηκαν τα τελευταία τοπικά δεδομένα');
+      return;
+    }
+  }
+  mirrorWrite();
+}
+// Κάθε αποθήκευση γράφει και στο εφεδρικό αντίγραφο
+const _saveAllLocal = saveAll;
+saveAll = function(withUndo = true) { _saveAllLocal(withUndo); mirrorWrite(); };
+
+// ═══════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════
 renderDashboard();
+initLocalPersistence();
 </script>
 
 <!-- ==================== GOOGLE DRIVE SYNC ==================== -->
