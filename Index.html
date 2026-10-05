@@ -287,6 +287,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
     <div id="tl-src-chips" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px"></div>
     <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.8px">Κατηγορίες</div>
     <div id="tl-cat-chips" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+  <div id="tl-tag-wrap" style="display:none;margin-top:10px">
+    <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.8px">Ετικέτες</div>
+    <div id="tl-tag-chips" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+  </div>
     <div style="margin-top:10px;text-align:right">
       <button onclick="clearTLFilters()" style="padding:5px 12px;background:var(--sur3);border:1px solid var(--bdr);border-radius:var(--r-xs);font-size:11px;color:var(--muted);cursor:pointer">Καθαρισμός</button>
     </div>
@@ -459,8 +463,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
     </div>
     <div class="form-group">
       <label class="form-label">Κατηγορία *</label>
-      <select class="form-select" id="tl-cat"></select>
+            <select class="form-select" id="tl-cat"></select>
     </div>
+    <div class="form-group">
+      <label class="form-label">Ετικέτα</label>
+      <input class="form-input" id="tl-tag" list="tl-tag-list" maxlength="40" autocomplete="off" placeholder="Προαιρετικά — π.χ. Κλοπή">
+      <datalist id="tl-tag-list"></datalist>
+    </div>
+
     <div class="form-group">
       <label class="form-label">Σημείωση</label>
       <textarea class="form-textarea" id="tl-note" placeholder="Προαιρετικά…"></textarea>
@@ -1025,6 +1035,40 @@ function showTLLoanRow(dateVal) {
 let tlCatFilter = new Set();
 let tlSrcFilter = 'all'; // 'all' | 'loan' | 'own'
 let tlSort = 'date-desc';
+let tlTagFilter = new Set();
+
+// ── Ετικέτες εγγραφών (π.χ. «Κλοπή») ──────────
+function escTag(t) { return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function allTags() {
+  const seen = new Map();
+  DB.tl.forEach(e=>{ const t=(e.tag||'').trim(); if (t && !seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t); });
+  return [...seen.values()].sort((a,b)=>a.localeCompare(b,'el'));
+}
+// Αν υπάρχει ήδη ετικέτα με άλλα κεφαλαία/πεζά (π.χ. «κλοπή» / «Κλοπή»), χρησιμοποιείται η υπάρχουσα γραφή
+function normalizeTag(t) {
+  t = (t||'').replace(/\s+/g,' ').trim();
+  if (!t) return '';
+  const ex = allTags().find(x=>x.toLowerCase()===t.toLowerCase());
+  return ex || t;
+}
+function fillTagList() {
+  const dl = document.getElementById('tl-tag-list');
+  if (dl) dl.innerHTML = allTags().map(t=>`<option value="${escTag(t)}"></option>`).join('');
+}
+function buildTLTagChips() {
+  const wrap = document.getElementById('tl-tag-chips'), box = document.getElementById('tl-tag-wrap');
+  if (!wrap || !box) return;
+  const tags = allTags();
+  tlTagFilter.forEach(t=>{ if (!tags.includes(t)) tlTagFilter.delete(t); });
+  box.style.display = tags.length ? 'block' : 'none';
+  wrap.innerHTML = tags.map(t=>`<div class="chip${tlTagFilter.has(t)?' on':''}" onclick="toggleTLTag(decodeURIComponent('${encodeURIComponent(t)}'),this)">🔖 ${escTag(t)}</div>`).join('');
+}
+function toggleTLTag(name, el) {
+  if (tlTagFilter.has(name)) { tlTagFilter.delete(name); el.classList.remove('on'); }
+  else { tlTagFilter.add(name); el.classList.add('on'); }
+  renderTimeline();
+}
+
 
 function buildTLSrcChips() {
   const wrap = document.getElementById('tl-src-chips');
@@ -1049,7 +1093,7 @@ function toggleTLFilterPanel() {
   const open  = panel.style.display === 'none';
   panel.style.display = open ? 'block' : 'none';
   btn.classList.toggle('on', open);
-  if (open) { buildTLSrcChips(); buildTLCatChips(); }
+  if (open) { buildTLSrcChips(); buildTLCatChips(); buildTLTagChips(); }
 }
 
 function buildTLCatChips() {
@@ -1068,12 +1112,15 @@ function toggleTLCat(name, el) {
 }
 
 function clearTLFilters() {
-  tlCatFilter.clear();
+    tlCatFilter.clear();
+  tlTagFilter.clear();
   tlSrcFilter = 'all';
+
   buildTLSrcChips();
   document.getElementById('tl-date-from').value = '';
   document.getElementById('tl-date-to').value = '';
-  buildTLCatChips();
+    buildTLCatChips();
+  buildTLTagChips();
   renderTimeline();
 }
 
@@ -1099,6 +1146,9 @@ function buildActivePills(q, dateFrom, dateTo) {
   tlCatFilter.forEach(cat=>{
     pills.push(`<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:99px;font-size:11px;background:var(--sur3);border:1px solid var(--orange);color:var(--orange-l)">🏷 ${cat} <span onclick="tlCatFilter.delete('${cat}');buildTLCatChips();renderTimeline()" style="cursor:pointer;opacity:.7">✕</span></span>`);
   });
+    tlTagFilter.forEach(t=>{
+    pills.push(`<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:99px;font-size:11px;background:var(--sur3);border:1px solid #9b6fd1;color:#c6a6ee">🔖 ${escTag(t)} <span onclick="tlTagFilter.delete(decodeURIComponent('${encodeURIComponent(t)}'));buildTLTagChips();renderTimeline()" style="cursor:pointer;opacity:.7">✕</span></span>`);
+  });
   wrap.innerHTML = pills.join('');
 }
 
@@ -1117,7 +1167,9 @@ function renderTimeline() {
   const dateTo   = document.getElementById('tl-date-to')?.value||'';
   buildActivePills(q, dateFrom, dateTo);
   let list = [...DB.tl];
-  if (tlCatFilter.size>0) list = list.filter(e=>tlCatFilter.has(e.cat));
+    if (tlCatFilter.size>0) list = list.filter(e=>tlCatFilter.has(e.cat));
+  if (tlTagFilter.size>0) list = list.filter(e=>tlTagFilter.has((e.tag||'').trim()));
+
   if (tlSrcFilter==='loan') list = list.filter(e=>e.fromLoan===true);
   else if (tlSrcFilter==='own') list = list.filter(e=>e.fromLoan!==true);
   if (dateFrom) list = list.filter(e=>(e.date||'')>=dateFrom);
@@ -1125,6 +1177,7 @@ function renderTimeline() {
   if (q) list = list.filter(e=>
     (e.desc||'').toLowerCase().includes(q)||
     (e.cat||'').toLowerCase().includes(q)||
+    (e.tag||'').toLowerCase().includes(q)||
     (e.note||'').toLowerCase().includes(q)
   );
   if(tlSort==='date-desc') list.sort((a,b)=>{ const d=(b.date||'').localeCompare(a.date||''); return d!==0?d:(b.id-a.id); });
@@ -1168,7 +1221,8 @@ function renderTimeline() {
         <div class="row-sub">
           <span>${fmtDate(e.date)}</span>
           <span style="color:${catColor(e.cat)}">${e.cat||'—'}</span>
-        </div>
+  ${e.tag?`<span style="font-size:10px;padding:1px 7px;border-radius:99px;background:rgba(155,111,209,.18);color:#c6a6ee;border:1px solid #9b6fd1">🔖 ${escTag(e.tag)}</span>`:''}
+  </div>
         ${e.note?`<div class="row-note">📌 ${e.note}</div>`:''}
         <div class="row-cum">Συνολικό κόστος έως τότε: <b>${fmt(cumMap.get(e.id)||0)}</b></div>
       </div>
@@ -1189,7 +1243,9 @@ function openTLModal(id) {
   document.getElementById('tl-cost').value = '';
   const today = todayISO();
   document.getElementById('tl-date').value = today;
-  document.getElementById('tl-note').value = '';
+    document.getElementById('tl-note').value = '';
+  document.getElementById('tl-tag').value = '';
+  fillTagList();
   document.getElementById('tl-delete-btn').style.display = 'none';
   setTLLoanToggle(false);
   showTLLoanRow(today);
@@ -1207,7 +1263,9 @@ function editTL(id) {
   document.getElementById('tl-desc').value = e.desc||'';
   document.getElementById('tl-cost').value = e.cost||'';
   document.getElementById('tl-date').value = e.date||'';
-  document.getElementById('tl-note').value = e.note||'';
+    document.getElementById('tl-note').value = e.note||'';
+  document.getElementById('tl-tag').value = e.tag||'';
+  fillTagList();
   setTLLoanToggle(e.fromLoan===true);
   showTLLoanRow(e.date||'');
   const sel = document.getElementById('tl-cat');
@@ -1221,7 +1279,8 @@ function saveTL() {
   const cost = parseFloat(document.getElementById('tl-cost').value);
   const date = document.getElementById('tl-date').value;
   const cat = document.getElementById('tl-cat').value;
-  const note = document.getElementById('tl-note').value.trim();
+    const note = document.getElementById('tl-note').value.trim();
+  const tag = normalizeTag(document.getElementById('tl-tag').value);
   const fromLoan = tlIsLoan;
   if (!desc) { toast('⚠️ Συμπλήρωσε Περιγραφή'); return; }
   if (isNaN(cost)||cost<=0) { toast('⚠️ Εισαγωγή έγκυρου ποσού'); return; }
@@ -1231,9 +1290,9 @@ function saveTL() {
     const prev = DB.tl.find(x=>x.id===editId);
     // unusedLoan will be recalculated below
     const idx = DB.tl.findIndex(x=>x.id===editId);
-    if (idx>=0) DB.tl[idx] = {...DB.tl[idx], desc,cost,date,cat,note,fromLoan};
+    if (idx>=0) DB.tl[idx] = {...DB.tl[idx], desc,cost,date,cat,note,tag,fromLoan};
   } else {
-    DB.tl.push({id:nextId(DB.tl),desc,cost,date,cat,note,fromLoan});
+    DB.tl.push({id:nextId(DB.tl),desc,cost,date,cat,note,tag,fromLoan});
   }
   recalcUnusedLoan();
   saveAll(false);
@@ -1879,6 +1938,34 @@ const pdfH  = (t,right) => ({text:t, bold:true, color:'#fff', fillColor:PDFC.gre
 const pdfC  = (t,o) => Object.assign({text:String(t==null?'':t), fontSize:9}, o||{});
 const pdfCR = (t,o) => pdfC(t, Object.assign({alignment:'right'}, o||{}));
 const pdfNote = t => ({text:t||'', fontSize:8, color:'#4a4a4a'});
+const PDF_TAGCOL = '#7b3fa0';
+function pdfNoteEntry(e) {
+  const t = [];
+  if (e.tag) t.push({text:'['+e.tag+'] ', bold:true, color:PDF_TAGCOL});
+  if (e.note) t.push({text:e.note});
+  return {text:t, fontSize:8, color:'#4a4a4a'};
+}
+function tagSummary() {
+  const m = new Map();
+  DB.tl.forEach(e=>{
+    const t = (e.tag||'').trim(); if (!t) return;
+    const r = m.get(t) || {tag:t, n:0, total:0, cats:{}};
+    const c = +e.cost||0; r.n++; r.total += c; const k = e.cat||'—'; r.cats[k] = (r.cats[k]||0) + c;
+    m.set(t, r);
+  });
+  return [...m.values()].sort((a,b)=>b.total-a.total);
+}
+function pdfTagTable(rows, total) {
+  const body = [[pdfH('Ετικέτα'), pdfH('Εγγραφές',1), pdfH('Κόστος',1), pdfH('% Συνόλου',1), pdfH('Ανά κατηγορία')]];
+  rows.forEach((r,i)=>{
+    const f = i%2 ? PDFC.zebra : null;
+    const cats = Object.entries(r.cats).sort((a,b)=>b[1]-a[1]).map(([c,v])=>c+': '+fmt(v)).join('\n');
+    body.push([pdfFill(pdfC(r.tag,{bold:true,color:PDF_TAGCOL}),f), pdfFill(pdfCR(String(r.n)),f), pdfFill(pdfCR(fmt(r.total)),f),
+               pdfFill(pdfCR(total?pdfPct(r.total/total):'—'),f), pdfFill(pdfNote(cats),f)]);
+  });
+  return [{table:{headerRows:1, dontBreakRows:true, widths:['*',50,80,58,170], body}, layout:pdfLayout},
+          {text:'Τα έξοδα με ετικέτα περιλαμβάνονται ήδη στο κόστος της κατηγορίας τους και δεν προστίθενται ξανά στο συνολικό κόστος.', fontSize:7.5, color:PDFC.grey, margin:[0,3,0,0]}];
+}
 const pdfFill = (cell, color) => { if (color) cell.fillColor = color; return cell; };
 const pdfSec  = (text, extra) => Object.assign({text, style:'h2', tocItem:true, headlineLevel:1}, extra||{});
 
@@ -2052,7 +2139,7 @@ function pdfTimelineTable(R) {
       body.push([
         pdfFill(loan ? {canvas:[{type:'ellipse', x:3, y:5, r1:3, r2:3, color:PDFC.loanFg}]} : {text:''}, f),
         pdfFill(pdfC(fmtDate(e.date)),f), pdfFill(pdfC(e.desc||'—'),f), pdfFill(pdfC(e.cat||'—'),f),
-        pdfFill(pdfCR(fmt(c)),f), pdfFill(pdfCR(fmt(cum),{color:PDFC.grey}),f), pdfFill(pdfNote(e.note),f)
+        pdfFill(pdfCR(fmt(c)),f), pdfFill(pdfCR(fmt(cum),{color:PDFC.grey}),f), pdfFill(pdfNoteEntry(e),f)
       ]);
     });
   });
@@ -2140,8 +2227,10 @@ function buildPdfDoc() {
     {text:'', margin:[0,6,0,0]},
     ...pdfEstimate(R),
     pdfSec('Πηγές Δανεισμού'),
-    pdfSourcesTable(R)
+        pdfSourcesTable(R)
   ];
+  const tagRows = tagSummary();
+  if (tagRows.length) content.push(pdfSec('Έξοδα ανά ετικέτα'), ...pdfTagTable(tagRows, R.total));
   const cc = pdfChartCategories(R), cm = pdfChartMonthly();
   content.push(pdfSec('Γραφήματα: κόστος ανά κατηγορία και ανά μήνα', {pageBreak:'before'}));
   if (cc) content.push({text:'Κόστος ανά κατηγορία', bold:true, margin:[0,0,0,3]}, {image:cc.img, width:539});
@@ -2546,7 +2635,7 @@ function buildTLRows(entries, ss) {
       cells.push(`<c r="E${r}" s="${s.E}" />`);
     }
 
-    const note = ((e.fromLoan===true?'[Από δάνειο] ':'')+(e.note||'')).trim();
+    const note = ((e.fromLoan===true?'[Από δάνειο] ':'')+(e.tag?'['+e.tag+'] ':'')+(e.note||'')).trim();
     if (note) {
       const fi = ssIndex(ss, note);
       cells.push(`<c r="F${r}" s="${s.F}" t="s"><v>${fi}</v></c>`);
