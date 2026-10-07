@@ -185,6 +185,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
 .set-row:last-child{border-bottom:none}
 .set-lbl{font-size:14px}
 .set-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.exp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.exp-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:14px 6px;background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r-sm);color:var(--txt);font-family:inherit;cursor:pointer;transition:.15s}
+.exp-btn:active{transform:scale(.97)}
+.exp-btn:disabled{opacity:.6;cursor:default}
+.exp-btn .exp-ic{font-size:24px;line-height:1}
+.exp-btn .exp-t{font-size:14px;font-weight:700}
+.exp-btn .exp-s{font-size:10px;color:var(--muted)}
+.exp-btn.x-blue{border-color:rgba(58,111,209,.5)}
+.exp-btn.x-orange{border-color:rgba(200,134,42,.5)}
+.exp-opt{background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r-sm);padding:12px 14px;margin-bottom:8px;cursor:pointer}
+.exp-opt:active{background:var(--sur3)}
+.exp-opt-t{font-size:14px;font-weight:600}
+.exp-opt-s{font-size:11px;color:var(--muted);margin-top:2px}
+.exp-opt-l{font-size:10px;color:var(--green);margin-top:5px}
+.exp-opt-l:empty{display:none}
+.exp-chk{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px}
+.exp-chk input{accent-color:var(--green);width:16px;height:16px;flex-shrink:0}
 
 /* ── CONFIRM ── */
 .confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:none;align-items:center;justify-content:center;padding:20px}
@@ -298,6 +315,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
   <div id="tl-active-pills" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px"></div>
   <div id="tl-summary" style="background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r-sm);padding:7px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
     <span id="tl-summary-count" style="font-size:12px;color:var(--muted)"></span>
+  <button id="tl-summary-pdf" onclick="exportTimelinePDF()" style="display:none;padding:4px 10px;background:rgba(200,134,42,.15);border:1px solid rgba(200,134,42,.3);border-radius:99px;font-size:11px;color:var(--orange-l);cursor:pointer;font-family:inherit">📄 PDF</button>
     <span id="tl-summary-total" style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--green)"></span>
   </div>
   <div id="tl-list"></div>
@@ -379,29 +397,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
     <div style="font-size:11px;color:var(--muted);padding-bottom:4px" id="undo-info">Δεν υπάρχουν ενέργειες για αναίρεση</div>
   </div>
   <div class="card">
-    <div class="card-hdr">Εξαγωγή Δεδομένων</div>
-    <div class="set-row">
-      <div><div class="set-lbl">📊 Εξαγωγή Excel</div><div class="set-sub">Εξάγει .xlsx με ακριβώς την ίδια μορφή του αρχείου</div></div>
-      <button class="btn btn-blue" onclick="exportXLSX()" id="btn-xlsx" style="padding:8px 14px;font-size:12px">Export</button>
-    </div>
-    <div class="set-row">
-      <div><div class="set-lbl">📄 Εξαγωγή PDF</div><div class="set-sub">Πλήρης αναφορά με γραφήματα, περιεχόμενα και εκτίμηση τελικού κόστους</div></div>
-      <button class="btn btn-orange" onclick="exportPDF()" style="padding:8px 14px;font-size:12px">Export</button>
-    </div>
-    <div class="set-row">
-      <div><div class="set-lbl">🏦 Αναφορά Δανείων (PDF)</div><div class="set-sub">Σύντομη αναφορά μόνο για δάνεια — για τράπεζα ή λογιστή</div></div>
-      <button class="btn btn-orange" onclick="exportLoansPDF()" style="padding:8px 14px;font-size:12px">Export</button>
-    </div>
-    <div class="set-row">
-      <div><div class="set-lbl">🗂️ Εξαγωγή JSON</div><div class="set-sub">Αντίγραφο ασφαλείας όλων των δεδομένων</div></div>
-      <button class="btn btn-secondary" onclick="exportJSON()" style="padding:8px 14px;font-size:12px">Export</button>
-    </div>
-    <div class="set-row">
-      <div><div class="set-lbl">📥 Εισαγωγή JSON</div><div class="set-sub">Επαναφορά από αντίγραφο ασφαλείας</div></div>
-      <button class="btn btn-secondary" onclick="importJSON()" style="padding:8px 14px;font-size:12px">Import</button>
-    </div>
-    <input type="file" id="json-import-input" accept=".json" style="display:none" onchange="handleJSONImport(event)">
+  <div class="card-hdr">Εξαγωγή Δεδομένων</div>
+  <div class="exp-grid">
+    <button class="exp-btn x-blue" id="btn-xlsx" onclick="exportXLSX()"><span class="exp-ic">📊</span><span class="exp-t">Excel</span><span class="exp-s">Πλήρες αρχείο</span></button>
+    <button class="exp-btn x-orange" onclick="openExportSheet('pdf')"><span class="exp-ic">📄</span><span class="exp-t">PDF</span><span class="exp-s">Αναφορές</span></button>
+    <button class="exp-btn" onclick="openExportSheet('json')"><span class="exp-ic">🗂️</span><span class="exp-t">JSON</span><span class="exp-s">Αντίγραφα</span></button>
   </div>
+  <div class="set-sub" id="exp-last" style="margin-top:10px"></div>
+  <input type="file" id="json-import-input" accept=".json" style="display:none" onchange="handleJSONImport(event)">
+</div>
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div><div class="set-lbl">🏷 Κατηγορίες</div><div class="set-sub" id="cat-count-sub">—</div></div>
@@ -711,6 +715,64 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);disp
     </div>
     <div id="loansrc-delete-btn" style="margin-top:8px;display:none">
       <button class="btn btn-danger" style="width:100%" onclick="deleteLoanSrcFromModal()">🗑️ Διαγραφή Πηγής</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ ΕΞΑΓΩΓΗ: PDF / JSON ══════════ -->
+<div class="overlay" id="exp-pdf-sheet">
+  <div class="modal">
+    <div class="modal-hdr"><div class="modal-title">📄 Εξαγωγή PDF</div><div class="modal-close" onclick="closeModal('exp-pdf-sheet')">✕</div></div>
+    <div class="exp-opt" onclick="exportPDF()">
+      <div class="exp-opt-t">📘 Πλήρης αναφορά</div>
+      <div class="exp-opt-s">Σύνοψη, γραφήματα, κόστος ανά κατηγορία, Timeline εξόδων και δανείων, μελλοντικά έξοδα</div>
+      <div class="exp-opt-l" id="exp-last-full"></div>
+    </div>
+    <div class="exp-opt" onclick="exportLoansPDF()">
+      <div class="exp-opt-t">🏦 Αναφορά Δανείων</div>
+      <div class="exp-opt-s">Σύντομη αναφορά μόνο για δάνεια — για τράπεζα ή λογιστή</div>
+      <div class="exp-opt-l" id="exp-last-loans"></div>
+    </div>
+    <div class="exp-opt" style="cursor:default">
+      <div class="exp-opt-t">🔖 Έξοδα με ετικέτα</div>
+      <div class="exp-opt-s">Λίστα και σύνολο των εξόδων μιας ετικέτας</div>
+      <div id="exp-tag-ctl" style="display:none;gap:8px;margin-top:10px;align-items:center">
+        <select class="form-select" id="exp-tag-sel" style="flex:1"></select>
+        <button class="btn btn-orange" onclick="runExpTag()" style="padding:8px 14px;font-size:12px">Export</button>
+      </div>
+      <div id="exp-tag-none" class="exp-opt-s" style="display:none;margin-top:8px">Δεν υπάρχουν ακόμα ετικέτες. Πρόσθεσε μία στο πεδίο «Ετικέτα» ενός εξόδου.</div>
+      <div class="exp-opt-l" id="exp-last-tag"></div>
+    </div>
+    <div class="exp-opt" onclick="toggleExpCustom()">
+      <div class="exp-opt-t">⚙️ Προσαρμοσμένη αναφορά <span style="color:var(--muted);font-weight:400">▾</span></div>
+      <div class="exp-opt-s">Διάλεξε ενότητες και περίοδο</div>
+      <div class="exp-opt-l" id="exp-last-custom"></div>
+    </div>
+    <div id="exp-custom" style="display:none;margin:-2px 0 10px;padding:12px 14px;background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r-sm)">
+      <div class="form-label">Ενότητες</div>
+      <div id="exp-sec-list"></div>
+      <div class="form-label" style="margin-top:10px">Περίοδος (προαιρετικά)</div>
+      <div class="form-row"><input type="date" class="form-input" id="exp-from"><input type="date" class="form-input" id="exp-to"></div>
+      <button class="btn btn-primary" onclick="runExpCustom()" style="width:100%;margin-top:12px">📄 Δημιουργία PDF</button>
+    </div>
+    <div id="exp-share-row" class="exp-chk" style="display:none;margin-top:6px">
+      <input type="checkbox" id="exp-share" onchange="toggleExpShare(this)"><label for="exp-share">📤 Κοινοποίηση αντί για λήψη (Viber, email, Drive)</label>
+    </div>
+  </div>
+</div>
+<div class="overlay" id="exp-json-sheet">
+  <div class="modal">
+    <div class="modal-hdr"><div class="modal-title">🗂️ Αντίγραφα ασφαλείας (JSON)</div><div class="modal-close" onclick="closeModal('exp-json-sheet')">✕</div></div>
+    <div class="set-sub" id="exp-json-count"></div>
+    <div class="set-sub" id="exp-json-last" style="margin-bottom:14px"></div>
+    <div class="exp-opt" onclick="closeModal('exp-json-sheet');exportJSON()">
+      <div class="exp-opt-t">⬇️ Λήψη αντιγράφου</div>
+      <div class="exp-opt-s">Αποθηκεύει όλα τα δεδομένα σε αρχείο .json</div>
+    </div>
+    <div class="exp-opt" onclick="closeModal('exp-json-sheet');importJSON()">
+      <div class="exp-opt-t">📥 Εισαγωγή αντιγράφου</div>
+      <div class="exp-opt-s">Επαναφορά από αρχείο .json</div>
+      <div class="exp-opt-s" id="exp-import-warn" style="color:var(--orange-l)"></div>
     </div>
   </div>
 </div>
@@ -1161,11 +1223,10 @@ function setTLSort(mode) {
   renderTimeline();
 }
 
-function renderTimeline() {
+function getTLFilteredList() {
   const q = (document.getElementById('tl-search')?.value||'').toLowerCase().trim();
   const dateFrom = document.getElementById('tl-date-from')?.value||'';
-  const dateTo   = document.getElementById('tl-date-to')?.value||'';
-  buildActivePills(q, dateFrom, dateTo);
+  const dateTo = document.getElementById('tl-date-to')?.value||'';
   let list = [...DB.tl];
     if (tlCatFilter.size>0) list = list.filter(e=>tlCatFilter.has(e.cat));
   if (tlTagFilter.size>0) list = list.filter(e=>tlTagFilter.has((e.tag||'').trim()));
@@ -1180,6 +1241,15 @@ function renderTimeline() {
     (e.tag||'').toLowerCase().includes(q)||
     (e.note||'').toLowerCase().includes(q)
   );
+  return list;
+}
+
+function renderTimeline() {
+  const q = (document.getElementById('tl-search')?.value||'').toLowerCase().trim();
+  const dateFrom = document.getElementById('tl-date-from')?.value||'';
+  const dateTo   = document.getElementById('tl-date-to')?.value||'';
+  buildActivePills(q, dateFrom, dateTo);
+  let list = getTLFilteredList();
   if(tlSort==='date-desc') list.sort((a,b)=>{ const d=(b.date||'').localeCompare(a.date||''); return d!==0?d:(b.id-a.id); });
   else if(tlSort==='date-asc')  list.sort((a,b)=>{ const d=(a.date||'').localeCompare(b.date||''); return d!==0?d:(b.id-a.id); });
   else if(tlSort==='cost-desc') list.sort((a,b)=>(+b.cost||0)-(+a.cost||0));
@@ -1190,6 +1260,8 @@ function renderTimeline() {
     sumEl.style.display='flex';
     document.getElementById('tl-summary-count').textContent = list.length+' εγγραφές';
     document.getElementById('tl-summary-total').textContent = fmt(summaryTotal);
+  const _pb = document.getElementById('tl-summary-pdf');
+  if (_pb) _pb.style.display = (list.length && (q||dateFrom||dateTo||tlCatFilter.size||tlTagFilter.size||tlSrcFilter!=='all')) ? 'inline-block' : 'none';
   }
   if (!list.length) {
     document.getElementById('tl-list').innerHTML = '<div class="empty">Δεν βρέθηκαν εγγραφές</div>';
@@ -1779,6 +1851,7 @@ function openCatListModal() { renderSettingsLists(); document.getElementById('ca
 function openSrcListModal() { renderSettingsLists(); document.getElementById('src-list-modal').classList.add('on'); }
 
 function renderSettings() {
+  renderExportLast();
   refreshUndoButtons();
   const cc = document.getElementById('cat-count-sub');
   if (cc) cc.textContent = DB.cats.length + ' κατηγορίες';
@@ -1977,6 +2050,7 @@ function pdfDateRange() {
 // ── Αυτόματη κατάσταση χρήσης κάθε εκταμίευσης ───────────────
 // Τα έξοδα «Από δάνειο» θεωρούνται ότι καταναλώνουν τις εκταμιεύσεις με σειρά ημερομηνίας (οι παλαιότερες πρώτα).
 function loanUsage() {
+  if (window.__loanUsageFixed) return window.__loanUsageFixed;
   const out = {};
   let spent = DB.tl.filter(e=>e.fromLoan===true).reduce((s,e)=>s+(+e.cost||0),0);
   const ekt = DB.dan.filter(e=>e.type==='Εκταμίευση')
@@ -2099,7 +2173,7 @@ function pdfCategoryTable(R) {
   const body = [[pdfH('Κατηγορία'), pdfH('Κόστος',1), pdfH('% Συνόλου',1), pdfH('Εγγραφές',1)]];
   R.catRows.forEach((c,i)=>{
     const f = i%2 ? PDFC.zebra : null;
-    body.push([pdfFill({text:[{text:'■  ', color:catColor(c.name)}, {text:c.name}], fontSize:9}, f),
+    body.push([pdfFill({columns:[{canvas:[{type:'rect', x:0, y:1.5, w:7, h:7, color:catColor(c.name)}], width:11}, {text:c.name, fontSize:9}]}, f),
                pdfFill(pdfCR(fmt(c.amt)),f), pdfFill(pdfCR(pdfPct(c.pct)),f), pdfFill(pdfCR(String(c.n)),f)]);
   });
   const T = PDFC.total;
@@ -2123,11 +2197,11 @@ function pdfEstimate(R) {
     {text:'Η εκτίμηση βασίζεται στα εκκρεμή μελλοντικά έξοδα που έχουν καταχωρηθεί και δεν περιλαμβάνει τυχόν απρόβλεπτα.', fontSize:7.5, color:PDFC.grey}
   ];
 }
-function pdfTimelineTable(R) {
+function pdfTimelineTable(R, startCum, cumLabel) {
   const srt = [...DB.tl].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   const months = {}; srt.forEach(e=>{ const k = e.date ? e.date.slice(0,7) : '0000-00'; (months[k] = months[k]||[]).push(e); });
-  const body = [[pdfH(''), pdfH('Ημ/νία'), pdfH('Περιγραφή'), pdfH('Κατηγορία'), pdfH('Κόστος',1), pdfH('Σύνολο μέχρι εδώ',1), pdfH('Σημείωση')]];
-  let cum = 0;
+  const body = [[pdfH(''), pdfH('Ημ/νία'), pdfH('Περιγραφή'), pdfH('Κατηγορία'), pdfH('Κόστος',1), pdfH(cumLabel||'Σύνολο μέχρι εδώ',1), pdfH('Σημείωση')]];
+  let cum = +startCum||0;
   Object.entries(months).forEach(([k,items])=>{
     const mt = items.reduce((s,e)=>s+(+e.cost||0),0), [y,m] = k.split('-');
     const lab = k==='0000-00' ? '—' : PDF_MONTHS[+m]+' '+y, G = PDFC.greenL;
@@ -2209,46 +2283,257 @@ function pdfBaseDoc(title, headerTitle, range, content) {
   };
 }
 
-// ── Πλήρης αναφορά ──────────────────────────
-function buildPdfDoc() {
-  const R = reportData(), range = pdfDateRange();
-  const usedN = DB.tl.filter(e=>e.fromLoan===true).length;
-  const content = [
-    {text:'Κόστος Κατασκευής Σπιτιού', style:'h1'},
-    {text:'Εξαγωγή: '+new Date().toLocaleDateString('el-GR')+'   |   Περίοδος: '+range+'   |   Εγγραφές: '+DB.tl.length, color:PDFC.grey, margin:[0,2,0,10]},
-    {toc:{title:{text:'Περιεχόμενα', bold:true, fontSize:11, color:PDFC.green, margin:[0,0,0,3]}, textStyle:{color:PDFC.green}}},
-    pdfSec('Σύνοψη και εκτίμηση τελικού κόστους'),
-    pdfKpiCards([
-      ['Συνολικό κόστος κατασκευής',fmt(R.total)], ['Εκταμιευθέντα δάνεια',fmt(R.loanOut)],
-      ['Υπόλοιπο δανείων',fmt(R.loanRem)], ['Καθαρά / ίδια κεφάλαια',fmt(R.own)],
-      ['Έξοδα δανείων (πραγματικά)',fmt(R.loanExp)], ['Εγγυήσεις προς επιστροφή',fmt(R.held)],
-      ['Αχρησιμοποίητο δάνειο',fmt(R.unusedPool)], ['Μελλοντικά έξοδα (εκκρεμή)',fmt(R.futTotal)]
-    ], 4),
-    {text:'', margin:[0,6,0,0]},
-    ...pdfEstimate(R),
-    pdfSec('Πηγές Δανεισμού'),
-        pdfSourcesTable(R)
-  ];
-  const tagRows = tagSummary();
-  if (tagRows.length) content.push(pdfSec('Έξοδα ανά ετικέτα'), ...pdfTagTable(tagRows, R.total));
-  const cc = pdfChartCategories(R), cm = pdfChartMonthly();
-  content.push(pdfSec('Γραφήματα: κόστος ανά κατηγορία και ανά μήνα', {pageBreak:'before'}));
-  if (cc) content.push({text:'Κόστος ανά κατηγορία', bold:true, margin:[0,0,0,3]}, {image:cc.img, width:539});
-  if (cm) content.push({text:'Κόστος ανά μήνα και σωρευτικό κόστος (€)', bold:true, margin:[0,10,0,3]}, {image:cm.img, width:539});
-  content.push(pdfSec('Κόστος ανά Κατηγορία'), pdfCategoryTable(R));
-  content.push(pdfSec('Timeline Εξόδων', {pageBreak:'before'}),
-    {text:[{text:'●  ', color:PDFC.loanFg}, {text:'Πληρώθηκε από δάνειο (μπλε γραμμή): '+usedN+' εγγραφές, σύνολο '+fmt(DB.tl.filter(e=>e.fromLoan===true).reduce((s,e)=>s+(+e.cost||0),0))+'.   Η στήλη «Σύνολο μέχρι εδώ» δείχνει το σωρευτικό κόστος μετά από κάθε έξοδο.'}],
-      fontSize:8, color:PDFC.grey, margin:[0,0,0,4]},
-    pdfTimelineTable(R));
-  content.push(pdfSec('Timeline Δανείων', {pageBreak:'before'}), pdfDanTable(DB.dan, true),
-    {text:'Εκταμιεύσεις: '+fmt(R.loanOut)+'   ·   Έξοδα δανείων (πραγματικά): '+fmt(R.loanExp)+'   ·   Εγγυήσεις προς επιστροφή: '+fmt(R.held), fontSize:8, color:PDFC.grey, margin:[0,4,0,0]});
-  content.push(pdfSec('Μελλοντικά Έξοδα', {pageBreak:'before'}), pdfFutureTable(R));
-  if (R.ens.length) {
-    const body = [[pdfH('Ημ/νία'), pdfH('Περιγραφή'), pdfH('Κόστος',1)]];
-    R.ens.forEach((e,i)=>{ const z = i%2 ? PDFC.zebra : null; body.push([pdfFill(pdfC(fmtDate(e.date)),z), pdfFill(pdfC(e.desc||''),z), pdfFill(pdfCR(fmt(+e.cost||0)),z)]); });
-    content.push(pdfSec('Ένσημα'), {table:{headerRows:1, dontBreakRows:true, widths:[50,'*',80], body}, layout:pdfLayout});
+// ── Πλήρης αναφορά (με προαιρετικές ενότητες / περίοδο) ──────────
+const PDF_SECTIONS = [
+  ['sum','Σύνοψη και εκτίμηση τελικού κόστους'], ['src','Πηγές Δανεισμού'], ['tag','Έξοδα ανά ετικέτα'],
+  ['ch','Γραφήματα'], ['cat','Κόστος ανά Κατηγορία'], ['tl','Timeline Εξόδων'],
+  ['dan','Timeline Δανείων'], ['fut','Μελλοντικά Έξοδα'], ['ens','Ένσημα']
+];
+// Εκτελεί την fn με προσωρινά φιλτραρισμένα DB.tl / DB.dan (η κατάσταση «χρησιμοποιήθηκε» των δανείων μένει υπολογισμένη στο σύνολο)
+function pdfWithDB(sub, usage, fn) {
+  const bak = {tl:DB.tl, dan:DB.dan};
+  window.__loanUsageFixed = usage || null;
+  DB.tl = sub.tl; DB.dan = sub.dan;
+  try { return fn(); }
+  finally { DB.tl = bak.tl; DB.dan = bak.dan; window.__loanUsageFixed = null; }
+}
+function pdfNoEntries(txt) { return {text:txt, italics:true, color:PDFC.grey, margin:[0,2,0,4]}; }
+
+function buildPdfDoc(opts) {
+  opts = opts || {};
+  const on = k => !opts.sections || opts.sections.includes(k);
+  const from = opts.from || '', to = opts.to || '', hasRange = !!(from || to);
+  const inRange = d => (!from || (d||'') >= from) && (!to || (d||'') <= to);
+  const Rall = reportData(), usage = loanUsage();
+  const subTl = DB.tl.filter(e=>inRange(e.date)), subDan = DB.dan.filter(e=>inRange(e.date));
+  const startCum = from ? DB.tl.filter(e=>(e.date||'') < from).reduce((s,e)=>s+(+e.cost||0),0) : 0;
+  const range = hasRange ? (from ? fmtDate(from) : '…')+' – '+(to ? fmtDate(to) : '…') : pdfDateRange();
+  return pdfWithDB({tl:subTl, dan:subDan}, usage, ()=>{
+    const R = reportData();
+    const loanN = DB.tl.filter(e=>e.fromLoan===true).length;
+    const loanSum = DB.tl.filter(e=>e.fromLoan===true).reduce((s,e)=>s+(+e.cost||0),0);
+    const sub = 'Εξαγωγή: '+new Date().toLocaleDateString('el-GR')+'   |   Περίοδος: '+range+'   |   Εγγραφές: '+DB.tl.length;
+    const content = [
+      {text:'Κόστος Κατασκευής Σπιτιού', style:'h1'},
+      {text:sub, color:PDFC.grey, margin:[0,2,0,hasRange?3:10]}
+    ];
+    if (hasRange) content.push({text:'Φιλτραρισμένη περίοδος: τα σύνολα ανά κατηγορία, τα γραφήματα και τα Timeline αφορούν μόνο αυτήν. Η σύνοψη και οι πηγές δανεισμού αφορούν ολόκληρο το έργο.', fontSize:8, color:PDFC.grey, margin:[0,0,0,8]});
+    content.push({toc:{title:{text:'Περιεχόμενα', bold:true, fontSize:11, color:PDFC.green, margin:[0,0,0,3]}, textStyle:{color:PDFC.green}}});
+    let placed = false;
+    const pb = () => placed ? {pageBreak:'before'} : {};
+
+    if (on('sum')) {
+      content.push(pdfSec(hasRange ? 'Σύνοψη έργου (συνολικά)' : 'Σύνοψη και εκτίμηση τελικού κόστους'),
+        pdfKpiCards([
+          ['Συνολικό κόστος κατασκευής',fmt(Rall.total)], ['Εκταμιευθέντα δάνεια',fmt(Rall.loanOut)],
+          ['Υπόλοιπο δανείων',fmt(Rall.loanRem)], ['Καθαρά / ίδια κεφάλαια',fmt(Rall.own)],
+          ['Έξοδα δανείων (πραγματικά)',fmt(Rall.loanExp)], ['Εγγυήσεις προς επιστροφή',fmt(Rall.held)],
+          ['Αχρησιμοποίητο δάνειο',fmt(Rall.unusedPool)], ['Μελλοντικά έξοδα (εκκρεμή)',fmt(Rall.futTotal)]
+        ], 4),
+        {text:'', margin:[0,6,0,0]}, ...pdfEstimate(Rall));
+      placed = true;
+    }
+    if (on('src')) { content.push(pdfSec('Πηγές Δανεισμού'), pdfSourcesTable(Rall)); placed = true; }
+    if (on('tag')) {
+      const tr = tagSummary();
+      if (tr.length) { content.push(pdfSec('Έξοδα ανά ετικέτα'), ...pdfTagTable(tr, R.total)); placed = true; }
+    }
+    if (on('ch')) {
+      const cc = pdfChartCategories(R), cm = pdfChartMonthly();
+      content.push(pdfSec('Γραφήματα: κόστος ανά κατηγορία και ανά μήνα', pb()));
+      if (cc) content.push({text:'Κόστος ανά κατηγορία', bold:true, margin:[0,0,0,3]}, {image:cc.img, width:539});
+      if (cm) content.push({text:'Κόστος ανά μήνα και σωρευτικό κόστος (€)', bold:true, margin:[0,10,0,3]}, {image:cm.img, width:539});
+      if (!cc && !cm) content.push(pdfNoEntries('Δεν υπάρχουν εγγραφές στην επιλεγμένη περίοδο.'));
+      placed = true;
+    }
+    if (on('cat')) { content.push(pdfSec('Κόστος ανά Κατηγορία'), DB.tl.length ? pdfCategoryTable(R) : pdfNoEntries('Δεν υπάρχουν εγγραφές στην επιλεγμένη περίοδο.')); placed = true; }
+    if (on('tl')) {
+      content.push(pdfSec('Timeline Εξόδων', pb()));
+      if (DB.tl.length) {
+        content.push({columns:[{canvas:[{type:'ellipse', x:4, y:5, r1:3, r2:3, color:PDFC.loanFg}], width:11},
+            {text:'Πληρώθηκε από δάνειο (μπλε γραμμή): '+loanN+' εγγραφές, σύνολο '+fmt(loanSum)+'.   Η στήλη «Σύνολο μέχρι εδώ» δείχνει το σωρευτικό κόστος του έργου μετά από κάθε έξοδο.', fontSize:8, color:PDFC.grey}],
+          margin:[0,0,0,4]}, pdfTimelineTable(R, startCum));
+      } else content.push(pdfNoEntries('Δεν υπάρχουν εγγραφές στην επιλεγμένη περίοδο.'));
+      placed = true;
+    }
+    if (on('dan')) {
+      content.push(pdfSec('Timeline Δανείων', pb()));
+      if (DB.dan.length) {
+        content.push(pdfDanTable(DB.dan, true),
+          {text:'Εκταμιεύσεις: '+fmt(R.loanOut)+'   ·   Έξοδα δανείων (πραγματικά): '+fmt(R.loanExp)+'   ·   Εγγυήσεις προς επιστροφή: '+fmt(R.held), fontSize:8, color:PDFC.grey, margin:[0,4,0,0]});
+      } else content.push(pdfNoEntries('Δεν υπάρχουν κινήσεις δανείων στην επιλεγμένη περίοδο.'));
+      placed = true;
+    }
+    if (on('fut')) {
+      content.push(pdfSec('Μελλοντικά Έξοδα', pb()), DB.fut.length ? pdfFutureTable(R) : pdfNoEntries('Δεν υπάρχουν μελλοντικά έξοδα.'));
+      placed = true;
+    }
+    if (on('ens') && R.ens.length) {
+      const body = [[pdfH('Ημ/νία'), pdfH('Περιγραφή'), pdfH('Κόστος',1)]];
+      R.ens.forEach((e,i)=>{ const z = i%2 ? PDFC.zebra : null; body.push([pdfFill(pdfC(fmtDate(e.date)),z), pdfFill(pdfC(e.desc||''),z), pdfFill(pdfCR(fmt(+e.cost||0)),z)]); });
+      content.push(pdfSec('Ένσημα'), {table:{headerRows:1, dontBreakRows:true, widths:[50,'*',80], body}, layout:pdfLayout});
+    }
+    return pdfBaseDoc('Κόστος Κατασκευής Σπιτιού', 'Κόστος Κατασκευής Σπιτιού', range, content);
+  });
+}
+
+// ── Αναφορά για μια επιλογή εγγραφών (ετικέτα / αποτελέσματα φίλτρων Timeline) ──
+function buildSelectionPdfDoc(o) {
+  const entries = [...o.entries].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  return pdfWithDB({tl:entries, dan:[]}, null, ()=>{
+    const R = reportData();
+    const ds = entries.map(e=>e.date).filter(Boolean).sort();
+    const range = ds.length ? fmtDate(ds[0])+' – '+fmtDate(ds[ds.length-1]) : '—';
+    const loanSum = entries.filter(e=>e.fromLoan===true).reduce((s,e)=>s+(+e.cost||0),0);
+    const content = [
+      {text:o.title, style:'h1'},
+      {text:'Εξαγωγή: '+new Date().toLocaleDateString('el-GR')+'   |   Περίοδος εγγραφών: '+range+'   |   Εγγραφές: '+entries.length, color:PDFC.grey, margin:[0,2,0,o.filters?3:10]}
+    ];
+    if (o.filters) content.push({text:o.filters, fontSize:8.5, color:PDFC.grey, margin:[0,0,0,10]});
+    content.push(pdfKpiCards([
+      ['Σύνολο επιλογής',fmt(R.total)], ['Εγγραφές',String(entries.length)],
+      ['Από δάνειο',fmt(loanSum)], ['Ίδια κεφάλαια',fmt(R.total-loanSum)]
+    ], 4));
+    if (!entries.length) content.push(pdfNoEntries('Δεν βρέθηκαν εγγραφές.'));
+    else {
+      const tr = tagSummary();
+      if (o.showTags && tr.length) content.push(pdfSec('Ανά ετικέτα'), ...pdfTagTable(tr, R.total));
+      content.push(pdfSec('Κόστος ανά κατηγορία'), pdfCategoryTable(R));
+      content.push(pdfSec('Εγγραφές'), pdfTimelineTable(R, 0, 'Σωρευτικό επιλογής'));
+    }
+    content.forEach(n=>{ if (n && n.tocItem) delete n.tocItem; });
+    return pdfBaseDoc(o.title, o.title, range, content);
+  });
+}
+function describeTLFilters() {
+  const q = (document.getElementById('tl-search')?.value||'').trim();
+  const df = document.getElementById('tl-date-from')?.value||'', dt = document.getElementById('tl-date-to')?.value||'';
+  const p = [];
+  if (q) p.push('Αναζήτηση: «'+q+'»');
+  if (df || dt) p.push('Ημερομηνίες: '+(df?fmtDate(df):'…')+' → '+(dt?fmtDate(dt):'…'));
+  if (tlSrcFilter==='loan') p.push('Πηγή: από δάνειο'); else if (tlSrcFilter==='own') p.push('Πηγή: δικά μου κεφάλαια');
+  if (tlCatFilter.size) p.push('Κατηγορίες: '+[...tlCatFilter].join(', '));
+  if (tlTagFilter.size) p.push('Ετικέτες: '+[...tlTagFilter].join(', '));
+  return p.length ? 'Φίλτρα: '+p.join('  ·  ') : '';
+}
+
+// ── Τελευταίες εξαγωγές ─────────────────────
+const EXP_KEY = 'spiti_lastexp';
+function expLast() { try { return JSON.parse(localStorage.getItem(EXP_KEY)||'{}') || {}; } catch(e) { return {}; } }
+function markExport(kind) {
+  const o = expLast(); o[kind] = new Date().toISOString();
+  try { localStorage.setItem(EXP_KEY, JSON.stringify(o)); } catch(e) {}
+  renderExportLast();
+}
+function fmtLast(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('el-GR')+' '+d.toLocaleTimeString('el-GR',{hour:'2-digit',minute:'2-digit'});
+}
+function renderExportLast() {
+  const el = document.getElementById('exp-last'); if (!el) return;
+  const L = expLast();
+  const pdfLatest = Object.keys(L).filter(k=>k.startsWith('pdf_')).map(k=>L[k]).sort().pop();
+  const parts = [['Excel',L.xlsx],['PDF',pdfLatest],['JSON',L.json]].filter(x=>x[1]).map(x=>x[0]+': '+fmtLast(x[1]));
+  el.textContent = parts.length ? 'Τελευταία εξαγωγή — '+parts.join('  ·  ') : 'Δεν έχει γίνει ακόμα εξαγωγή από αυτή τη συσκευή.';
+}
+
+// ── Παράδοση PDF (λήψη ή κοινοποίηση) ───────
+function pdfCanShare() {
+  try { return !!(navigator.canShare && navigator.canShare({files:[new File(['x'],'a.pdf',{type:'application/pdf'})]})); }
+  catch(e) { return false; }
+}
+function pdfShareOn() { return pdfCanShare() && localStorage.getItem('spiti_pdfshare')==='1'; }
+function pdfDeliver(doc, filename, kind, okMsg) {
+  return new Promise(resolve=>{
+    const finishDownload = () => { pdfMake.createPdf(doc).download(filename); markExport(kind); toast(okMsg); resolve(); };
+    if (!pdfShareOn()) return finishDownload();
+    pdfMake.createPdf(doc).getBlob(async blob=>{
+      try {
+        await navigator.share({files:[new File([blob], filename, {type:'application/pdf'})], title:filename});
+        markExport(kind); toast(okMsg); resolve();
+      } catch(e) {
+        if (e && e.name==='AbortError') { toast('Η κοινοποίηση ακυρώθηκε'); resolve(); }
+        else finishDownload();
+      }
+    });
+  });
+}
+function pdfFileDate() { return new Date().toISOString().split('T')[0]; }
+function pdfSafeName(t) { return String(t).replace(/[^\p{L}\p{N}]+/gu,'_').replace(/^_+|_+$/g,'') || 'εξαγωγή'; }
+async function pdfRun(buildFn, filename, kind, okMsg) {
+  try {
+    toast('⏳ Δημιουργία PDF…');
+    await pdfEnsureLib();
+    await pdfDeliver(buildFn(), filename, kind, okMsg);
+  } catch(e) { toast('❌ Σφάλμα PDF: ' + e.message); console.error(e); }
+}
+function exportPDF(opts) {
+  closeModal('exp-pdf-sheet');
+  const custom = !!(opts && (opts.sections || opts.from || opts.to));
+  return pdfRun(()=>buildPdfDoc(opts), (custom ? 'Κόστος_Σπιτιού_προσαρμοσμένη_' : 'Κόστος_Σπιτιού_') + pdfFileDate() + '.pdf',
+    custom ? 'pdf_custom' : 'pdf_full', '📄 PDF εξήχθη!');
+}
+function exportLoansPDF() {
+  closeModal('exp-pdf-sheet');
+  return pdfRun(()=>buildLoansPdfDoc(), 'Αναφορά_Δανείων_' + pdfFileDate() + '.pdf', 'pdf_loans', '📄 Αναφορά Δανείων εξήχθη!');
+}
+function exportTagPDF(tag) {
+  closeModal('exp-pdf-sheet');
+  const entries = DB.tl.filter(e=>{ const t=(e.tag||'').trim(); return tag ? t===tag : !!t; });
+  if (!entries.length) { toast('⚠️ Δεν υπάρχουν έξοδα με ετικέτα'); return; }
+  return pdfRun(()=>buildSelectionPdfDoc({title: tag ? 'Έξοδα με ετικέτα: '+tag : 'Έξοδα με ετικέτα', entries, showTags: !tag}),
+    'Έξοδα_' + (tag ? pdfSafeName(tag) : 'με_ετικέτα') + '_' + pdfFileDate() + '.pdf', 'pdf_tag', '📄 PDF εξήχθη!');
+}
+function exportTimelinePDF() {
+  const entries = getTLFilteredList();
+  if (!entries.length) { toast('⚠️ Δεν υπάρχουν εγγραφές για εξαγωγή'); return; }
+  return pdfRun(()=>buildSelectionPdfDoc({title:'Εγγραφές Timeline', entries, filters:describeTLFilters(), showTags:true}),
+    'Εγγραφές_Timeline_' + pdfFileDate() + '.pdf', 'pdf_view', '📄 PDF εξήχθη!');
+}
+
+// ── Παράθυρα εξαγωγής (PDF / JSON) ──────────
+function openExportSheet(kind) {
+  if (kind==='pdf') { fillPdfSheet(); document.getElementById('exp-pdf-sheet').classList.add('on'); }
+  else { fillJsonSheet(); document.getElementById('exp-json-sheet').classList.add('on'); }
+}
+function fillPdfSheet() {
+  const L = expLast();
+  [['full','pdf_full'],['loans','pdf_loans'],['tag','pdf_tag'],['custom','pdf_custom']].forEach(([id,k])=>{
+    const el = document.getElementById('exp-last-'+id); if (el) el.textContent = L[k] ? 'Τελευταία εξαγωγή: '+fmtLast(L[k]) : '';
+  });
+  const tags = allTags(), sel = document.getElementById('exp-tag-sel');
+  sel.innerHTML = '<option value="">Όλες οι ετικέτες</option>' + tags.map(t=>`<option value="${escTag(t)}">${escTag(t)}</option>`).join('');
+  document.getElementById('exp-tag-ctl').style.display = tags.length ? 'flex' : 'none';
+  document.getElementById('exp-tag-none').style.display = tags.length ? 'none' : 'block';
+  const box = document.getElementById('exp-sec-list');
+  if (!box.dataset.built) {
+    box.innerHTML = PDF_SECTIONS.map(([k,l])=>`<label class="exp-chk"><input type="checkbox" id="exp-sec-${k}" checked> ${l}</label>`).join('');
+    box.dataset.built = '1';
   }
-  return pdfBaseDoc('Κόστος Κατασκευής Σπιτιού', 'Κόστος Κατασκευής Σπιτιού', range, content);
+  const tagChk = document.getElementById('exp-sec-tag'); tagChk.disabled = !tags.length; if (!tags.length) tagChk.checked = false;
+  const sh = document.getElementById('exp-share-row');
+  sh.style.display = pdfCanShare() ? 'flex' : 'none';
+  document.getElementById('exp-share').checked = pdfShareOn();
+}
+function toggleExpCustom() {
+  const p = document.getElementById('exp-custom');
+  p.style.display = p.style.display==='none' ? 'block' : 'none';
+}
+function toggleExpShare(chk) { try { localStorage.setItem('spiti_pdfshare', chk.checked ? '1' : '0'); } catch(e) {} }
+function runExpTag() { exportTagPDF(document.getElementById('exp-tag-sel').value); }
+function runExpCustom() {
+  const sections = PDF_SECTIONS.map(x=>x[0]).filter(k=>{ const c=document.getElementById('exp-sec-'+k); return c && c.checked && !c.disabled; });
+  const from = document.getElementById('exp-from').value, to = document.getElementById('exp-to').value;
+  if (!sections.length) { toast('⚠️ Διάλεξε τουλάχιστον μία ενότητα'); return; }
+  if (from && to && from > to) { toast('⚠️ Η ημερομηνία «Από» είναι μετά την «Έως»'); return; }
+  exportPDF({sections, from, to});
+}
+function fillJsonSheet() {
+  const L = expLast();
+  document.getElementById('exp-json-last').textContent = L.json ? 'Τελευταίο αντίγραφο: '+fmtLast(L.json) : 'Δεν έχει γίνει ακόμα αντίγραφο από αυτή τη συσκευή.';
+  document.getElementById('exp-json-count').textContent = DB.tl.length+' εγγραφές εξόδων · '+DB.dan.length+' κινήσεις δανείων · '+DB.fut.length+' μελλοντικά έξοδα';
+  document.getElementById('exp-import-warn').textContent = 'Θα αντικατασταθούν τα τρέχοντα δεδομένα ('+DB.tl.length+' εγγραφές εξόδων, '+DB.dan.length+' κινήσεις δανείων). Θα ζητηθεί επιβεβαίωση και μπορείς να το αναιρέσεις από τις Ρυθμίσεις.';
 }
 
 // ── Σύντομη αναφορά μόνο για τα δάνεια ──────
@@ -2282,22 +2567,6 @@ async function pdfEnsureLib() {
   if (!window.pdfMake.vfs || !window.pdfMake.vfs['Roboto-Regular.ttf']) await load('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js');
 }
 
-async function exportPDF() {
-  try {
-    await pdfEnsureLib();
-    pdfMake.createPdf(buildPdfDoc()).download('Κόστος_Σπιτιού_' + new Date().toISOString().split('T')[0] + '.pdf');
-    toast('📄 PDF εξήχθη!');
-  } catch(e) { toast('❌ Σφάλμα PDF: ' + e.message); console.error(e); }
-}
-
-async function exportLoansPDF() {
-  try {
-    await pdfEnsureLib();
-    pdfMake.createPdf(buildLoansPdfDoc()).download('Αναφορά_Δανείων_' + new Date().toISOString().split('T')[0] + '.pdf');
-    toast('📄 Αναφορά Δανείων εξήχθη!');
-  } catch(e) { toast('❌ Σφάλμα PDF: ' + e.message); console.error(e); }
-}
-
 function exportJSON() {
   const payload = {
     exported: new Date().toISOString(),
@@ -2317,6 +2586,7 @@ function exportJSON() {
   a.click();
   URL.revokeObjectURL(url);
   toast('✅ JSON αποθηκεύτηκε');
+  markExport('json');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2325,14 +2595,14 @@ function exportJSON() {
 
 async function exportXLSX() {
   const btn = document.getElementById('btn-xlsx');
-  btn.textContent = '⏳ Παράγεται…'; btn.disabled = true;
+  const _orig = btn.innerHTML; btn.innerHTML = '<span class="exp-ic">⏳</span><span class="exp-t">Excel</span><span class="exp-s">Παράγεται…</span>'; btn.disabled = true;
   try {
     await _buildXLSXfromTemplate();
   } catch(e) {
     toast('❌ Σφάλμα: ' + e.message);
     console.error(e);
   } finally {
-    btn.textContent = 'Export'; btn.disabled = false;
+    btn.innerHTML = _orig; btn.disabled = false;
   }
 }
 
@@ -2489,6 +2759,7 @@ async function _buildXLSXfromTemplate() {
   a.click();
   URL.revokeObjectURL(a.href);
   toast('📊 Excel εξήχθη!');
+  markExport('xlsx');
 }
 
 // ── Shared Strings helpers ─────────────────────────────────────
@@ -2510,7 +2781,7 @@ function handleJSONImport(event) {
       }
       showConfirm(
         '📥 Εισαγωγή JSON',
-        'Τα τρέχοντα δεδομένα θα αντικατασταθούν. Συνέχεια;',
+        'Θα αντικατασταθούν τα τρέχοντα δεδομένα ('+DB.tl.length+' εγγραφές εξόδων, '+DB.dan.length+' κινήσεις δανείων) με τα δεδομένα του αρχείου ('+(data.tl||[]).length+' εγγραφές εξόδων, '+(data.dan||[]).length+' κινήσεις δανείων). Μπορείς να το αναιρέσεις από τις Ρυθμίσεις. Συνέχεια;',
         () => {
           pushUndo();
           if (data.tl)      DB.tl      = data.tl;
